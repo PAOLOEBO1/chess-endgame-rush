@@ -76,6 +76,8 @@ interface Props {
   /** Conseil : famille de finales la plus faible du joueur (Elo). */
   weakness: { family: string; label: string; elo: number } | null;
   onWeakness: (family: string) => void;
+  /** Espace entraîneur : composer une série à partager par lien. */
+  onCoach: () => void;
   /** Leçons guidées (démonstrations commentées). */
   lessons: { id: string; title: string }[];
   onLesson: (id: string) => void;
@@ -383,6 +385,14 @@ export function HomeScreen(p: Props) {
               {p.techniqueCount === null ? 'Chargement…' : `${p.techniqueCount} positions disponibles`}
             </span>
           </div>
+        </section>
+        <section className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-700 p-4">
+          <p className="text-sm text-stone-300">
+            🧑‍🏫 <strong>Entraîneur ?</strong> Compose une série de positions et envoie-la par lien à tes élèves.
+          </p>
+          <button type="button" onClick={p.onCoach} className="rounded-lg bg-stone-700 px-4 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
+            Créer une série
+          </button>
         </section>
         <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
           <h2 className="text-lg font-bold text-stone-50">🎓 Leçons guidées</h2>

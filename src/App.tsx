@@ -6,6 +6,7 @@ import { applyUci } from './core/chessRules';
 import { dueNow, reviewItems } from './core/review';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
+import { decodeSeries, type Series } from './core/series';
 import { CHALLENGE_SIZE, challengePick, challengeProgress, weekKey } from './core/challenge';
 import { FAMILY_LABEL, familyOf } from './core/material';
 import type { Puzzle } from './core/types';
@@ -26,7 +27,7 @@ import { playerStore } from './services/players';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number };
 
 const embed = readEmbedOptions();
 
@@ -34,6 +35,8 @@ const embed = readEmbedOptions();
 const loadProgress = () => import('./screens/ProgressScreen');
 const loadPrivacy = () => import('./screens/PrivacyScreen');
 const loadLeaderboard = () => import('./screens/LeaderboardScreen');
+const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ default: m.CoachScreen })));
+const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
 const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
 const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
 const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
@@ -76,8 +79,26 @@ function buildPool(theme: ThemeChoice, sub: string, lichess: Puzzle[]): Puzzle[]
   return lichess.filter((p) => p.family === theme && (sub === 'all' || p.subcategory === sub));
 }
 
+/** Série d'entraîneur reçue par lien (#serie=…), lue une fois au chargement. */
+const SERIES: Series | null = typeof window === 'undefined' ? null : decodeSeries(window.location.hash, (id) => BASICS.some((b) => b.id === id));
+const SERIES_PUZZLES: Puzzle[] = (SERIES?.items ?? []).map((it, i) =>
+  'id' in it
+    ? BASICS.find((b) => b.id === it.id)!
+    : classify({
+        id: `serie-${i + 1}`,
+        title: it.title ?? `Position ${i + 1}`,
+        fen: it.fen,
+        objective: it.objective,
+        collection: 'bases',
+        level: 'intermediaire',
+        rating: 1500,
+        concept: 'Position choisie par ton entraîneur : cherche le plan avant de jouer.',
+      }),
+);
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>({ name: 'home' });
+  const [screen, setScreen] = useState<Screen>(SERIES ? { name: 'series' } : { name: 'home' });
+  const [seriesResults, setSeriesResults] = useState<(boolean | null)[]>(() => SERIES_PUZZLES.map(() => null));
   // Derniers choix mémorisés (sauf réglages imposés par une intégration dans un site).
   const saved = getSettings();
   const [mode, setMode] = useState<HomeMode>(embed.mode ?? ((saved.lastMode as HomeMode | null) ?? 'storm'));
@@ -421,6 +442,44 @@ export default function App() {
     );
   }
 
+  if (screen.name === 'coach') {
+    return shell(<CoachScreen basics={BASICS} judge={judge} onHome={() => setScreen({ name: 'home' })} />);
+  }
+
+  if (screen.name === 'series' && SERIES) {
+    return shell(
+      <SeriesScreen
+        series={SERIES}
+        results={seriesResults}
+        titles={SERIES_PUZZLES.map((p) => p.title)}
+        onPlay={(index) => setScreen({ name: 'seriesPlay', index })}
+        onHome={() => setScreen({ name: 'home' })}
+      />,
+    );
+  }
+
+  if (screen.name === 'seriesPlay' && SERIES_PUZZLES[screen.index]) {
+    const sp = SERIES_PUZZLES[screen.index];
+    const i = screen.index;
+    return shell(
+      <GameScreen
+        key={`serie-${i}`}
+        puzzle={sp}
+        position={{ index: i, total: SERIES_PUZZLES.length }}
+        judge={judge}
+        backLabel="← La série"
+        header={`🧑‍🏫 ${SERIES!.name} — seule ta 1re tentative compte`}
+        onAttempt={(p, ok) => {
+          if (seriesResults[i] !== null) return;
+          setSeriesResults((r) => r.map((x, j) => (j === i ? ok : x)));
+          onTrainingAttempt(p, ok);
+        }}
+        onHome={() => setScreen({ name: 'series' })}
+        onNext={() => setScreen({ name: 'series' })}
+      />,
+    );
+  }
+
   if (screen.name === 'challenge' && challenge.picks[screen.index]) {
     const c = challenge.picks[screen.index];
     const already = challenge.results.get(c.id);
@@ -558,6 +617,7 @@ export default function App() {
       }}
       onTechnique={() => nextTechnique(0)}
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
+      onCoach={() => setScreen({ name: 'coach' })}
       challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}
       onChallenge={() => setScreen({ name: 'challenge', index: challenge.next >= 0 ? challenge.next : 0 })}
       weakness={weakness}
