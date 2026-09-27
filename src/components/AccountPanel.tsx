@@ -296,7 +296,7 @@ function LeaderboardOptIn({ account: a }: { account: CloudAccount }) {
       </summary>
       <div className="mt-2 flex flex-col gap-2 text-sm text-stone-300">
         <p>
-          Facultatif. Si vous participez, votre <strong>pseudo</strong> et vos résultats (Elo, record Storm, puzzles réussis
+          Facultatif. Si vous participez, votre <strong>pseudo</strong> et vos résultats (Elo, record Storm, défi de la semaine, puzzles réussis
           de la semaine) sont visibles par <strong>tous les visiteurs du site</strong>. Votre email n’est jamais affiché.
           Vous pouvez vous retirer à tout moment.
         </p>

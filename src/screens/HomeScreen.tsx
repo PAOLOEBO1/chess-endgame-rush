@@ -88,6 +88,9 @@ interface Props {
   /** Puzzle du jour : résultat du joueur aujourd'hui (null = pas encore joué). */
   daily: { rating: number; title: string; result: boolean | null } | null;
   onDaily: () => void;
+  /** Défi de la semaine (10 positions communes). */
+  challenge: { played: number; solved: number; total: number } | null;
+  onChallenge: () => void;
   onTechnique: () => void;
 }
 
@@ -179,7 +182,7 @@ export function HomeScreen(p: Props) {
         </section>
       )}
 
-      {!p.compact && (p.daily || p.streak) && (
+      {!p.compact && (p.daily || p.streak || p.challenge) && (
         <section className="mb-4 flex flex-wrap items-center gap-3">
           {p.streak && (
             <span
@@ -199,6 +202,21 @@ export function HomeScreen(p: Props) {
             >
               📌 Puzzle du jour (Elo {p.daily.rating}){' '}
               {p.daily.result === null ? '→ à jouer' : p.daily.result ? '✅ réussi' : '❌ raté (à revoir)'}
+            </button>
+          )}
+          {p.challenge && (
+            <button
+              type="button"
+              onClick={p.onChallenge}
+              className="rounded-full bg-sky-500/20 px-3 py-1.5 text-sm font-semibold text-sky-100 hover:bg-sky-500/30"
+              title="Les mêmes 10 finales pour tout le monde, du lundi au dimanche ; seule la première tentative compte"
+            >
+              🏁 Défi de la semaine :{' '}
+              {p.challenge.played === 0
+                ? '10 finales → à jouer'
+                : p.challenge.played < p.challenge.total
+                  ? `${p.challenge.played}/${p.challenge.total} → continuer`
+                  : `✅ ${p.challenge.solved}/${p.challenge.total} réussies`}
             </button>
           )}
         </section>

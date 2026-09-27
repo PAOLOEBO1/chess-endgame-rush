@@ -20,6 +20,7 @@ const MODES = [
   { id: 'training', label: 'Entraînement' },
   { id: 'review', label: 'Révision' },
   { id: 'daily', label: 'Puzzle du jour' },
+  { id: 'challenge', label: 'Défi' },
   { id: '', label: 'Tous modes' },
 ];
 const PERIODS = [

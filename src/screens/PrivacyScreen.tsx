@@ -72,7 +72,7 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
       <Section title="Classement public (facultatif)">
         <p>
           Seulement si vous le choisissez (« Apparaître dans le classement », écran 📈) : votre <strong>pseudo</strong> et des
-          résultats calculés à partir de votre historique (Elo, record Storm, puzzles réussis sur 7 jours) sont visibles par
+          résultats calculés à partir de votre historique (Elo, record Storm, puzzles réussis sur 7 jours, défi de la semaine) sont visibles par
           tous les visiteurs du site. Ni votre email ni l’identifiant de votre compte ne sont publiés. Base : votre
           consentement, que vous pouvez retirer à tout moment (« Me retirer du classement ») ; le classement est mis à jour
           sous 5 minutes.

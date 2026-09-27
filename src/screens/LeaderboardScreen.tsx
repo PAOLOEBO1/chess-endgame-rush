@@ -5,6 +5,12 @@ import { fetchLeaderboard, type Leaderboard, type LeaderboardKind } from '../ser
 
 const TABS: { id: LeaderboardKind; label: string; unit: string; help: string }[] = [
   {
+    id: 'challenge',
+    label: '🏁 Défi',
+    unit: '/ 10',
+    help: 'Défi de la semaine : les mêmes 10 finales pour tous, du lundi au dimanche. Première tentative seulement ; à égalité, le premier à avoir fini passe devant.',
+  },
+  {
     id: 'elo',
     label: '🎯 Elo',
     unit: 'Elo',
@@ -27,7 +33,7 @@ const TABS: { id: LeaderboardKind; label: string; unit: string; help: string }[]
 export function LeaderboardScreen({ onHome, onAccount, signedIn }: { onHome: () => void; onAccount: () => void; signedIn: boolean }) {
   const [data, setData] = useState<Leaderboard | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<LeaderboardKind>('elo');
+  const [tab, setTab] = useState<LeaderboardKind>('challenge');
 
   useEffect(() => {
     let cancelled = false;

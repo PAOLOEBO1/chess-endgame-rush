@@ -6,6 +6,7 @@ import { applyUci } from './core/chessRules';
 import { dueNow, reviewItems } from './core/review';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
+import { CHALLENGE_SIZE, challengePick, challengeProgress, weekKey } from './core/challenge';
 import { FAMILY_LABEL, familyOf } from './core/material';
 import type { Puzzle } from './core/types';
 import { loadLichessPuzzles } from './data/lichessRepository';
@@ -25,7 +26,7 @@ import { playerStore } from './services/players';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number };
 
 const embed = readEmbedOptions();
 
@@ -148,7 +149,7 @@ export default function App() {
   }, [changePlayer]);
 
   const onAttempt = useCallback(
-    (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily') => {
+    (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily' | 'challenge') => {
       const playerId = ensurePlayer();
       if (!playerId) return;
       playerStore.addAttempt(playerId, {
@@ -207,6 +208,23 @@ export default function App() {
     return { streak: dayStreak(acts, now), daily, dailyResult: dailyTry ? dailyTry.ok : null };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId, lichess, screen]);
+  // --- Défi de la semaine : mêmes 10 positions pour tous, 1re tentative seulement ---
+  const challenge = useMemo(() => {
+    const now = Date.now();
+    const picks = challengePick(lichess ?? [], now);
+    const acts = playerId ? playerStore.history(playerId).attempts : [];
+    return { picks, week: weekKey(now), ...challengeProgress(acts, picks, now) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, lichess, screen]);
+  const challengeRecorded = useRef(new Set<string>());
+  const onChallengeAttempt = useCallback(
+    (p: Puzzle, ok: boolean) => {
+      if (challenge.results.has(p.id) || challengeRecorded.current.has(p.id)) return;
+      challengeRecorded.current.add(p.id);
+      onAttempt(p, ok, 'challenge');
+    },
+    [challenge, onAttempt],
+  );
   const dailyRecorded = useRef(false);
   const onDailyAttempt = useCallback(
     (p: Puzzle, ok: boolean) => {
@@ -403,6 +421,27 @@ export default function App() {
     );
   }
 
+  if (screen.name === 'challenge' && challenge.picks[screen.index]) {
+    const c = challenge.picks[screen.index];
+    const already = challenge.results.get(c.id);
+    return shell(
+      <GameScreen
+        key={`challenge-${c.id}`}
+        puzzle={c}
+        position={{ index: screen.index, total: challenge.picks.length }}
+        judge={judge}
+        rules={rushRules(c.solution)}
+        backLabel="← Accueil"
+        header={`🏁 Défi de la semaine ${challenge.week.split('-S')[1]} — le même pour tous · ${
+          already === undefined ? 'seule ta 1re tentative compte' : `déjà joué (${already ? 'réussi' : 'raté'}) : cet essai ne compte pas`
+        }`}
+        onAttempt={onChallengeAttempt}
+        onHome={() => setScreen({ name: 'home' })}
+        onNext={() => setScreen(screen.index + 1 < challenge.picks.length ? { name: 'challenge', index: screen.index + 1 } : { name: 'home' })}
+      />,
+    );
+  }
+
   if (screen.name === 'daily' && motivation.daily) {
     const d = motivation.daily;
     return shell(
@@ -519,6 +558,8 @@ export default function App() {
       }}
       onTechnique={() => nextTechnique(0)}
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
+      challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}
+      onChallenge={() => setScreen({ name: 'challenge', index: challenge.next >= 0 ? challenge.next : 0 })}
       weakness={weakness}
       onWeakness={(family) => {
         setMode('storm');

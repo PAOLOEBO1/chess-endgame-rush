@@ -2,7 +2,7 @@
 
 import { getCloud } from './cloud';
 
-export type LeaderboardKind = 'elo' | 'storm' | 'week';
+export type LeaderboardKind = 'elo' | 'storm' | 'week' | 'challenge';
 
 export interface LeaderboardRow {
   rank: number;
@@ -30,7 +30,7 @@ export async function fetchLeaderboard(): Promise<Leaderboard> {
   if (error) throw error;
   const d = (data ?? {}) as { computed_at?: string; lists?: Record<string, unknown> };
   const lists: Leaderboard['lists'] = {};
-  for (const k of ['elo', 'storm', 'week'] as const) {
+  for (const k of ['challenge', 'elo', 'storm', 'week'] as const) {
     const rows = d.lists?.[k];
     lists[k] = Array.isArray(rows) ? rows.filter(isRow).map((r) => ({ ...r, games: r.games ?? 0, me: !!r.me })) : [];
   }
