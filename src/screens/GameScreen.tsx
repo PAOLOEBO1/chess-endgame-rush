@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Board, type MarkTone } from '../components/board/Board';
+import { MoveInput } from '../components/board/MoveInput';
 import { feedbackFor, type Tone } from '../components/hud/feedback';
 import { TRAINING_RULES, type ModeRules } from '../core/config';
 import { parseUci } from '../core/fen';
@@ -115,6 +116,9 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           arrow={arrow}
           onMove={(from, to, promotion) => playMove(from, to, promotion)}
         />
+        <div className="mt-2">
+          <MoveInput fen={state.fen} enabled={state.phase === 'awaitingPlayer'} onMove={(f, t, p) => playMove(f, t, p)} />
+        </div>
       </div>
 
       <aside className="flex w-full flex-col gap-4">

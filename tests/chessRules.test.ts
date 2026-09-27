@@ -41,3 +41,18 @@ test('mat et pat détectés', () => {
   const stale2 = applyMove('7k/8/5K2/8/8/8/8/6Q1 w - - 0 1', 'g1', 'g6');
   assert.equal(stale2?.isStalemate, true);
 });
+
+test('coup au clavier : notation anglaise tolérante ou cases', async () => {
+  const { parseMoveText } = await import('../src/core/chessRules');
+  const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  assert.equal(parseMoveText(start, 'e4')?.uci, 'e2e4');
+  assert.equal(parseMoveText(start, 'Nf3')?.uci, 'g1f3');
+  assert.equal(parseMoveText(start, ' g1f3 ')?.uci, 'g1f3');
+  assert.equal(parseMoveText(start, 'e2-e4')?.uci, 'e2e4');
+  assert.equal(parseMoveText(start, 'e5'), null); // illégal
+  assert.equal(parseMoveText(start, 'bonjour'), null);
+  // Promotion et roque
+  assert.equal(parseMoveText('8/4P3/8/8/8/k7/8/K7 w - - 0 1', 'e8=Q')?.uci, 'e7e8q');
+  assert.equal(parseMoveText('8/4P3/8/8/8/k7/8/K7 w - - 0 1', 'e7e8n')?.uci, 'e7e8n');
+  assert.equal(parseMoveText('4k3/8/8/8/8/8/8/4K2R w K - 0 1', '0-0')?.san, 'O-O');
+});

@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { registerServiceWorker } from './services/updates';
+import { applyBoardTheme, getSettings } from './services/settings';
+
+applyBoardTheme(getSettings().boardTheme);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

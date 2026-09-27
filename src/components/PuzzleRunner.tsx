@@ -6,6 +6,7 @@ import { parseUci } from '../core/fen';
 import type { Puzzle } from '../core/types';
 import { usePuzzlePlayer } from '../hooks/usePuzzlePlayer';
 import type { MoveJudge } from '../services/moveJudge';
+import { MoveInput } from './board/MoveInput';
 import { Board, type MarkTone } from './board/Board';
 import { feedbackFor, type Tone } from './hud/feedback';
 
@@ -88,6 +89,7 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
         arrow={arrow}
         onMove={(from, to, promotion) => playMove(from, to, promotion)}
       />
+      <MoveInput fen={state.fen} enabled={active && state.phase === 'awaitingPlayer'} onMove={(f, t, p) => playMove(f, t, p)} />
       <p className={`min-h-[1.5rem] text-sm font-medium ${banner ? 'text-amber-300' : TONE[feedback.tone]}`} aria-live="polite">
         {banner ?? `${feedback.title}${feedback.detail ? ` — ${feedback.detail}` : ''}`}
       </p>

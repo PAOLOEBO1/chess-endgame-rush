@@ -10,6 +10,7 @@ import type { Level, Puzzle } from '../core/types';
 import { useState } from 'react';
 import type { BestScore } from '../services/highScores';
 import { isSoundOn, setSoundOn } from '../services/sound';
+import { applyBoardTheme, BOARD_THEMES, getSettings, setSetting, type BoardTheme } from '../services/settings';
 
 export type HomeMode = RushMode | 'training';
 export type ThemeChoice = 'mix' | 'bases' | 'pions' | 'tours' | 'dames' | 'fous' | 'cavaliers' | 'mixte';
@@ -106,12 +107,19 @@ const myStart = (elo: number) => Math.max(400, Math.round((elo - 100) / 50) * 50
 export function HomeScreen(p: Props) {
   const rush = p.mode !== 'training';
   const [sound, setSound] = useState(isSoundOn);
+  const [board, setBoard] = useState<BoardTheme>(() => getSettings().boardTheme);
+  const pickBoard = (t: BoardTheme) => {
+    setBoard(t);
+    setSetting('boardTheme', t);
+    applyBoardTheme(t);
+  };
   return (
     <div className={`mx-auto max-w-5xl px-4 ${p.compact ? 'py-4' : 'py-8'}`}>
       <header className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className={`font-extrabold text-stone-50 ${p.compact ? 'text-2xl' : 'text-2xl sm:text-4xl'}`}>
-            ♔ <span className="sm:hidden">Endgame Rush</span>
+            <img src="icons/icon-192.png" alt="" width="40" height="40" className="mr-2 inline-block h-8 w-8 rounded-lg align-[-0.2em] sm:h-10 sm:w-10" />
+            <span className="sm:hidden">Endgame Rush</span>
             <span className="hidden sm:inline">Chess Endgame Rush</span>
           </h1>
           {!p.compact && (
@@ -435,6 +443,26 @@ export function HomeScreen(p: Props) {
       )}
 
       {!p.compact && (
+        <>
+        <section className="mt-8 flex flex-wrap items-center gap-2 text-sm" aria-label="Couleurs de l'échiquier">
+          <span className="text-stone-400">🎨 Échiquier :</span>
+          {BOARD_THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => pickBoard(t.id)}
+              aria-pressed={board === t.id}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold ${board === t.id ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-200 hover:bg-stone-700'}`}
+            >
+              <span
+                aria-hidden="true"
+                className="inline-block h-3.5 w-3.5 rounded-sm"
+                style={{ background: `linear-gradient(135deg, ${t.light} 50%, ${t.dark} 50%)` }}
+              />
+              {t.label}
+            </button>
+          ))}
+        </section>
         <footer className="mt-10 text-xs text-stone-400">
           Positions de parties réelles : base de puzzles Lichess (licence CC0). Jugement : table de finales Syzygy (API Lichess)
           et Stockfish. Échiquier : chessground (Lichess). Logiciel libre sous licence GPL v3.
@@ -449,6 +477,7 @@ export function HomeScreen(p: Props) {
             )}
           </div>
         </footer>
+        </>
       )}
     </div>
   );

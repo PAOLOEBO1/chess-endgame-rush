@@ -79,6 +79,30 @@ export function applyUci(fen: string, uci: string): AppliedMove | null {
   return applyMove(fen, uci.slice(0, 2), uci.slice(2, 4), promotion);
 }
 
+/**
+ * Coup saisi au clavier : notation algébrique anglaise (Nf3, exd5, O-O, e8=Q),
+ * tolérante (sans + ni #, minuscules pour les pions), ou cases de départ et
+ * d'arrivée (e2e4, e7e8q). Renvoie null si le coup est illégal ou incompris.
+ */
+export function parseMoveText(fen: string, text: string): AppliedMove | null {
+  const t = text.trim().replace(/\s+/g, '').replace(/0/g, 'O');
+  if (!t) return null;
+  if (/^[a-h][1-8]-?[a-h][1-8][qrbnQRBN]?$/.test(t)) {
+    const u = t.replace('-', '').toLowerCase();
+    return applyUci(fen, u);
+  }
+  const chess = load(fen);
+  if (!chess) return null;
+  let move;
+  try {
+    move = chess.move(t, { strict: false });
+  } catch {
+    return null;
+  }
+  if (!move) return null;
+  return applyMove(fen, move.from, move.to, move.promotion as PromotionPiece | undefined);
+}
+
 /** Tous les coups légaux, regroupés par case de départ (format attendu par l'échiquier). */
 export function legalDestsMap(fen: string): Map<string, string[]> {
   const chess = load(fen);
