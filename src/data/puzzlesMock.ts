@@ -1,9 +1,10 @@
-// Collection « Bases » : 21 positions théoriques (classées par difficulté, regroupées dans BASICS_GROUPS).
+// Collection « Bases » : 30 positions théoriques (classées par difficulté, regroupées dans BASICS_GROUPS).
 // Les 11 premières ont été vérifiées le 23/09/2026 avec la table de finales Lichess ;
 // les 6 ajoutées le 26/09/2026 (Réti, pion éloigné, mauvais fou, pat dame/pion,
 // Vancura, fou + cavalier) ont été contrôlées avec Stockfish, à confirmer par la table.
 // Les 4 ajoutées le 27/09/2026 (cavalier contre pion, dame contre tour, tour contre fou,
 // fous de couleurs opposées) : contrôlées avec Stockfish, à confirmer par la table.
+// Les 9 ajoutées le 27/09/2026 au soir : contrôlées avec Stockfish, à confirmer par la table.
 // Vérification (résultat théorique conforme à `objective`) : npm run verify:puzzles
 // Les `rating` sont des ESTIMATIONS à recalibrer ; ils servent seulement à
 // ordonner la difficulté.
@@ -52,6 +53,26 @@ export const PUZZLES_MOCK: Puzzle[] = [
     concept: 'Ton roi doit entrer dans le carré du pion pour le rattraper avant la promotion.',
   },
   {
+    id: 'bases-pion-tour-coin',
+    title: 'Pion de tour : le refuge du coin',
+    fen: 'k7/8/8/P1K5/8/8/8/8 b - - 0 1',
+    objective: 'draw',
+    collection: 'bases',
+    level: 'debutant',
+    rating: 800,
+    concept: 'Contre un pion de tour, le roi qui tient le coin de promotion ne peut plus en être chassé.',
+  },
+  {
+    id: 'bases-fou-bon-pion-tour',
+    title: 'Pion de tour et bon fou',
+    fen: '1k6/8/PK6/3B4/8/8/8/8 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'debutant',
+    rating: 800,
+    concept: 'Ton fou contrôle la case de promotion (a8) : rien n’empêche le pion de passer.',
+  },
+  {
     id: 'bases-opposition-defense',
     title: 'Opposition en défense',
     fen: '8/8/3k4/8/3PK3/8/8/8 b - - 0 1',
@@ -60,6 +81,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     level: 'debutant',
     rating: 850,
     concept: 'Face au roi et au pion, prends l’opposition : c’est le seul moyen de tenir la nulle.',
+  },
+  {
+    id: 'bases-roi-6e',
+    title: 'Le roi sur la 6e rangée',
+    fen: '4k3/8/4K3/8/4P3/8/8/8 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'debutant',
+    rating: 900,
+    concept: 'Roi en 6e rangée devant son pion : le gain est assuré quel que soit le trait. Garde ton roi devant le pion.',
   },
   {
     id: 'bases-opposition-attaque',
@@ -92,6 +123,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     concept: 'Échecs et clouages forcent le roi adverse devant son pion ; ton roi gagne alors un temps pour approcher.',
   },
   {
+    id: 'bases-tour-fou-mauvais-coin',
+    title: 'Tour contre fou : le mauvais coin',
+    fen: '7k/2R5/5K2/8/8/8/8/b7 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'intermediaire',
+    rating: 1150,
+    concept: 'Le roi noir est dans le coin de la couleur de son fou : cherche le mat.',
+  },
+  {
     id: 'bases-mauvais-fou',
     title: 'Fou de la mauvaise couleur',
     fen: '8/3k4/8/PK6/8/2B5/8/8 b - - 0 1',
@@ -110,6 +151,26 @@ export const PUZZLES_MOCK: Puzzle[] = [
     level: 'intermediaire',
     rating: 1250,
     concept: 'Un seul coup gagne : trouve comment empêcher la promotion sans perdre ta tour.',
+  },
+  {
+    id: 'bases-dame-pion-tour-coin',
+    title: 'Dame contre pion de tour : le coin',
+    fen: '8/8/8/8/8/3Q4/p7/1k4K1 b - - 0 1',
+    objective: 'draw',
+    collection: 'bases',
+    level: 'intermediaire',
+    rating: 1250,
+    concept: 'Avec un pion de tour, le coin offre le pat : reste collé au coin et au pion.',
+  },
+  {
+    id: 'bases-cavalier-pion-gain',
+    title: 'Cavalier et pion contre roi',
+    fen: '8/8/3k4/8/3PK3/8/4N3/8 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'intermediaire',
+    rating: 1250,
+    concept: 'Roi et cavalier escortent le pion : le cavalier couvre les cases que le roi ne peut pas tenir.',
   },
   {
     id: 'bases-dame-pion-pat',
@@ -152,6 +213,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     concept: 'Coupe le roi adverse, fais sortir ton roi, puis construis le « pont » avec ta tour.',
   },
   {
+    id: 'bases-pions-lies-tour',
+    title: 'Deux pions liés contre la tour',
+    fen: '8/8/5PP1/8/8/2K5/8/r5k1 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'avance',
+    rating: 1400,
+    concept: 'Deux pions liés en 6e rangée valent plus qu’une tour : pousse-les ensemble, l’un protège l’autre.',
+  },
+  {
     id: 'bases-philidor',
     title: 'Position de Philidor',
     fen: '4k3/7R/r7/3PK3/8/8/8/8 b - - 0 1',
@@ -162,6 +233,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     concept: 'Garde ta tour sur la 6e rangée ; quand le pion avance, va donner des échecs par l’arrière.',
   },
   {
+    id: 'bases-trait-decide',
+    title: 'Le trait décide (zugzwang)',
+    fen: '8/2k5/1p6/1P1K4/8/8/8/8 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'avance',
+    rating: 1500,
+    concept: 'Avec les Noirs au trait, ce serait nul : ton roi doit contourner le roi noir pour gagner le pion b6.',
+  },
+  {
     id: 'bases-reti',
     title: 'L’étude de Réti',
     fen: '7K/8/k1P5/7p/8/8/8/8 w - - 0 1',
@@ -170,6 +251,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     level: 'avance',
     rating: 1550,
     concept: 'En marchant en diagonale, ton roi poursuit deux buts à la fois : rattraper le pion noir et soutenir le tien.',
+  },
+  {
+    id: 'bases-tour-cavalier',
+    title: 'Tour contre cavalier',
+    fen: '8/8/3k4/3n4/8/8/1K6/4R3 b - - 0 1',
+    objective: 'draw',
+    collection: 'bases',
+    level: 'avance',
+    rating: 1550,
+    concept: 'Garde ton cavalier près de ton roi : séparés, l’un des deux finit par tomber.',
   },
   {
     id: 'bases-mat-deux-fous',
@@ -226,8 +317,8 @@ export const PUZZLES_MOCK: Puzzle[] = [
 /** Parcours conseillé : les Bases regroupées par thème, dans l'ordre où les apprendre. */
 export const BASICS_GROUPS: { id: string; label: string; ids: string[] }[] = [
   { id: 'mats', label: '♚ Mats de base', ids: ['bases-mat-deux-tours', 'bases-mat-dame', 'bases-mat-tour', 'bases-mat-deux-fous', 'bases-mat-fou-cavalier'] },
-  { id: 'pions', label: '♟ Finales de pions', ids: ['bases-regle-du-carre', 'bases-opposition-defense', 'bases-opposition-attaque', 'bases-pion-eloigne', 'bases-reti'] },
-  { id: 'tours', label: '♜ Finales de tours', ids: ['bases-tour-contre-pion', 'bases-lucena', 'bases-philidor', 'bases-vancura', 'bases-tour-fou-bon-coin'] },
-  { id: 'dames', label: '♛ Finales de dames', ids: ['bases-dame-contre-pion', 'bases-dame-pion-pat', 'bases-dame-tour-enfilade'] },
-  { id: 'mineures', label: '♝ Pièces mineures', ids: ['bases-mauvais-fou', 'bases-cavalier-pion', 'bases-fous-opposes'] },
+  { id: 'pions', label: '♟ Finales de pions', ids: ['bases-regle-du-carre', 'bases-pion-tour-coin', 'bases-roi-6e', 'bases-opposition-defense', 'bases-opposition-attaque', 'bases-pion-eloigne', 'bases-trait-decide', 'bases-reti'] },
+  { id: 'tours', label: '♜ Finales de tours', ids: ['bases-tour-contre-pion', 'bases-lucena', 'bases-philidor', 'bases-vancura', 'bases-pions-lies-tour', 'bases-tour-fou-mauvais-coin', 'bases-tour-fou-bon-coin', 'bases-tour-cavalier'] },
+  { id: 'dames', label: '♛ Finales de dames', ids: ['bases-dame-contre-pion', 'bases-dame-pion-pat', 'bases-dame-pion-tour-coin', 'bases-dame-tour-enfilade'] },
+  { id: 'mineures', label: '♝ Pièces mineures', ids: ['bases-fou-bon-pion-tour', 'bases-mauvais-fou', 'bases-cavalier-pion-gain', 'bases-cavalier-pion', 'bases-fous-opposes'] },
 ];
