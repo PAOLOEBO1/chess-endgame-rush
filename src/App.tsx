@@ -20,6 +20,7 @@ import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { getSettings, setSetting } from './services/settings';
+import { UpdateBanner } from './components/UpdateBanner';
 
 type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' };
 
@@ -68,11 +69,19 @@ function buildPool(theme: ThemeChoice, sub: string, lichess: Puzzle[]): Puzzle[]
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
-  const [mode, setMode] = useState<HomeMode>(embed.mode ?? 'storm');
-  const [theme, setTheme] = useState<ThemeChoice>((embed.theme as ThemeChoice) ?? 'mix');
-  const [sub, setSub] = useState<string>(embed.sub ?? 'all');
+  // Derniers choix mémorisés (sauf réglages imposés par une intégration dans un site).
+  const saved = getSettings();
+  const [mode, setMode] = useState<HomeMode>(embed.mode ?? ((saved.lastMode as HomeMode | null) ?? 'storm'));
+  const [theme, setTheme] = useState<ThemeChoice>((embed.theme as ThemeChoice) ?? ((saved.lastTheme as ThemeChoice | null) ?? 'mix'));
+  const [sub, setSub] = useState<string>(embed.sub ?? saved.lastSub ?? 'all');
   // Niveau de départ facultatif : null = automatique (exercices les plus faciles du thème, puis ça monte).
-  const [startRating, setStartRating] = useState<number | null>(embed.level ?? null);
+  const [startRating, setStartRating] = useState<number | null>(embed.level ?? saved.lastStart);
+  useEffect(() => {
+    setSetting('lastMode', mode);
+    setSetting('lastTheme', theme);
+    setSetting('lastSub', sub);
+    setSetting('lastStart', startRating);
+  }, [mode, theme, sub, startRating]);
   const [lichess, setLichess] = useState<Puzzle[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() => playerStore.currentPlayerId());
@@ -106,6 +115,7 @@ export default function App() {
   const key = mode === 'training' ? '' : scoreKey(mode, `${playerId ?? 'invite'}|${themeKey}`, startRating ?? 0);
   const shell = (content: ReactNode) => (
     <main className="min-h-dvh bg-stone-900 text-stone-100">
+      <UpdateBanner />
       <Suspense fallback={<p className="p-6 text-center text-stone-400">Chargement…</p>}>{content}</Suspense>
     </main>
   );
@@ -115,8 +125,23 @@ export default function App() {
     setPlayerId(id);
   }, []);
 
+  /**
+   * Premier lancement (aucun profil sur cet appareil) : un profil « Joueur » est
+   * créé à la première partie, pour que rien ne soit perdu. Si des profils
+   * existent et que l'invité a été choisi exprès, on respecte ce choix.
+   */
+  const ensurePlayer = useCallback((): string | null => {
+    const current = playerStore.currentPlayerId();
+    if (current) return current;
+    if (playerStore.listPlayers().length > 0) return null;
+    const created = playerStore.createPlayer('Joueur');
+    changePlayer(created.id);
+    return created.id;
+  }, [changePlayer]);
+
   const onAttempt = useCallback(
     (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily') => {
+      const playerId = ensurePlayer();
       if (!playerId) return;
       playerStore.addAttempt(playerId, {
         t: Date.now(),
@@ -128,15 +153,16 @@ export default function App() {
         ok: success,
       });
     },
-    [playerId],
+    [ensurePlayer],
   );
   const onRushAttempt = useCallback((p: Puzzle, ok: boolean) => onAttempt(p, ok, mode === 'streak' ? 'streak' : 'storm'), [onAttempt, mode]);
   const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean) => onAttempt(p, ok, 'training'), [onAttempt]);
   const onRunEnd = useCallback(
     (run: Omit<Run, 't'>) => {
-      if (playerId) playerStore.addRun(playerId, { t: Date.now(), ...run });
+      const id = ensurePlayer();
+      if (id) playerStore.addRun(id, { t: Date.now(), ...run });
     },
-    [playerId],
+    [ensurePlayer],
   );
 
   const account = useCloudAccount(playerStore, playerId, changePlayer);

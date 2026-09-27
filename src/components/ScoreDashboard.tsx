@@ -106,7 +106,7 @@ export function ScoreDashboard({ runs, onReplay }: { runs: Run[]; onReplay: (mod
           </div>
         ))}
       </div>
-      <p className="-mt-2 text-xs text-stone-500">Score = {MODE_INFO[mode].unit}.</p>
+      <p className="-mt-2 text-xs text-stone-400">Score = {MODE_INFO[mode].unit}.</p>
 
       <button
         type="button"
@@ -184,7 +184,7 @@ export function ScoreDashboard({ runs, onReplay }: { runs: Run[]; onReplay: (mod
               {showAll ? `Afficher les ${LIMIT} premières lignes` : `Afficher les ${rows} lignes`}
             </button>
           )}
-          <p className="mt-2 text-xs text-stone-500">
+          <p className="mt-2 text-xs text-stone-400">
             Précision = coups justes / coups joués. Coups, précision, temps et « + difficile réussi » sont mesurés sur les parties
             jouées depuis cette version (« – » avant).
           </p>

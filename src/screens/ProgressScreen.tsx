@@ -67,6 +67,15 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
     [history, chartMode, since],
   );
 
+  const [rename, setRename] = useState<string | null>(null);
+  const saveRename = () => {
+    if (!playerId || !rename?.trim()) return;
+    store.renamePlayer(playerId, rename);
+    setRename(null);
+    setVersion((v) => v + 1);
+    setMessage('Profil renommé.');
+  };
+
   const create = () => {
     if (!newName.trim()) return;
     const p = store.createPlayer(newName);
@@ -121,9 +130,38 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
             Invité (non archivé)
           </button>
           {players.length > 0 && !current && (
-            <span className="self-center text-xs text-stone-500">Cliquez sur un profil pour le sélectionner, l’exporter ou le supprimer.</span>
+            <span className="self-center text-xs text-stone-400">Cliquez sur un profil pour le sélectionner, l’exporter ou le supprimer.</span>
           )}
         </div>
+        {current &&
+          (rename === null ? (
+            <button type="button" onClick={() => setRename(current.name)} className="self-start text-sm text-sky-400 hover:underline">
+              ✏️ Renommer « {current.name} »
+            </button>
+          ) : (
+            <form
+              className="flex flex-wrap gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveRename();
+              }}
+            >
+              <input
+                value={rename}
+                onChange={(e) => setRename(e.target.value)}
+                maxLength={30}
+                aria-label="Nouveau nom du profil"
+                className="min-w-0 flex-1 rounded-lg bg-stone-900 px-3 py-2 text-stone-100"
+                autoFocus
+              />
+              <button type="submit" className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-stone-900 hover:bg-amber-400">
+                Renommer
+              </button>
+              <button type="button" onClick={() => setRename(null)} className="rounded-lg bg-stone-700 px-3 py-2 text-stone-100">
+                Annuler
+              </button>
+            </form>
+          ))}
         <form
           className="flex flex-wrap gap-2"
           onSubmit={(e) => {
@@ -136,6 +174,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
             onChange={(e) => setNewName(e.target.value)}
             maxLength={30}
             placeholder="Nouveau joueur (pseudo)"
+            aria-label="Nom du nouveau joueur"
             className="min-w-0 flex-1 rounded-lg bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500"
           />
           <button type="submit" className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-stone-900 hover:bg-amber-400">
@@ -188,7 +227,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
             ))}
         </div>
         {message && <p className="text-sm text-amber-300">{message}</p>}
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-400">
           Les profils sont enregistrés dans ce navigateur. Connectez-vous à un compte en ligne pour les retrouver sur tous vos
           appareils, ou exportez une sauvegarde.
         </p>

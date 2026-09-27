@@ -28,7 +28,7 @@ export function CategoryBars({
             <div className="h-4 rounded-r-[4px]" style={{ width: `${Math.max(2, s.rate * 100)}%`, background: BAR }} />
           </div>
           <span className="flex items-center gap-2 text-sm tabular-nums text-stone-300">
-            {Math.round(s.rate * 100)} %<span className="text-xs text-stone-500">({s.attempts})</span>
+            {Math.round(s.rate * 100)} %<span className="text-xs text-stone-400">({s.attempts})</span>
             {onTrain && (
               <button
                 type="button"

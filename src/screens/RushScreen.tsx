@@ -1,9 +1,10 @@
 // Modes Rush : Storm (chrono) et Streak (série). Les règles de score et de
 // temps sont dans core/rush/rushRules.ts ; ici, uniquement l'orchestration.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PuzzleRunner, type PuzzleEnd } from '../components/PuzzleRunner';
 import { CONFIG } from '../core/config';
+import { countPieces } from '../core/fen';
 import { remainingMs, rushReducer, startRush, targetRating, type RushMode, type RushState } from '../core/rush/rushRules';
 import { pickNext } from '../core/rush/selector';
 import type { Puzzle } from '../core/types';
@@ -59,19 +60,34 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
   const rushRef = useRef(rush);
   rushRef.current = rush;
   const movesRef = useRef(0); // coups joués (précision façon Lichess)
+  // Moteur Stockfish indisponible (vieux téléphone, mémoire) : on continue avec
+  // les seules finales de 7 pièces au plus, jugées par la table de finales.
+  const [engineDown, setEngineDown] = useState(false);
+  const engineDownRef = useRef(false);
+  const smallPool = useMemo(() => pool.filter((p) => countPieces(p.fen) <= CONFIG.tablebase.maxPieces), [pool]);
   const startedAtRef = useRef<number | null>(null);
 
   /** Tire un puzzle et vérifie (table ou moteur) que l'objectif annoncé est juste. */
   const findPlayable = useCallback(
     async (target: number): Promise<Puzzle | null> => {
       for (let attempt = 0; attempt < 8; attempt += 1) {
-        const candidate = pickNext(pool, target, excluded.current, Math.random, {
+        const candidate = pickNext(engineDownRef.current ? smallPool : pool, target, excluded.current, Math.random, {
           previousSubcategory: lastSub.current,
           recentlySeen,
         });
         if (!candidate) return null;
         excluded.current.add(candidate.id);
-        if (await judge.check(candidate.fen, candidate.objective)) {
+        let playable: boolean;
+        try {
+          playable = await judge.check(candidate.fen, candidate.objective);
+        } catch (error) {
+          // Finale longue impossible à vérifier sans moteur : bascule sur les finales courtes.
+          if (countPieces(candidate.fen) <= CONFIG.tablebase.maxPieces || smallPool.length === 0) throw error;
+          engineDownRef.current = true;
+          setEngineDown(true);
+          continue;
+        }
+        if (playable) {
           // Préchargement : le premier verdict sera immédiat.
           judge.prefetch(candidate.fen, { objective: candidate.objective, previousUci: [], solution: candidate.solution });
           lastSub.current = candidate.subcategory;
@@ -80,7 +96,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
       }
       return null;
     },
-    [pool, judge, recentlySeen],
+    [pool, smallPool, judge, recentlySeen],
   );
 
   // Préparation du premier puzzle. Le chrono attend le premier coup du joueur.
@@ -243,6 +259,12 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           onPlayerMove={onPlayerMove}
           banner={waiting ? (mode === 'storm' ? '⏱ Le chrono démarre à ton premier coup.' : '🔥 Joue ton premier coup pour commencer la série.') : null}
         />
+        {engineDown && (
+          <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-200" role="status">
+            ⚠️ Le moteur Stockfish ne se charge pas sur cet appareil : la partie continue avec les finales de 7 pièces au plus,
+            jugées par la table de finales.
+          </p>
+        )}
       </div>
 
       <aside className="order-1 flex w-full flex-col gap-3 lg:order-2 lg:max-w-sm">
@@ -260,7 +282,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
             <span key={i} title={`${h.title} · Elo ${h.rating}`} className={`h-3 w-3 rounded-sm ${h.success ? 'bg-emerald-500' : 'bg-red-500'}`} />
           ))}
         </div>
-        <p className="hidden text-xs text-stone-500 lg:block">
+        <p className="hidden text-xs text-stone-400 lg:block">
           {mode === 'storm'
             ? `+${CONFIG.modes.storm.bonusMs / 1000} s par réussite · −${CONFIG.modes.storm.penaltyMs / 1000} s par erreur`
             : 'La série s’arrête à la première erreur'}

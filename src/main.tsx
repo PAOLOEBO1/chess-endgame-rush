@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { registerServiceWorker } from './services/updates';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -10,8 +11,4 @@ createRoot(document.getElementById('root')!).render(
 );
 
 // Application installable et utilisable hors ligne (site en ligne uniquement).
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => undefined);
-  });
-}
+if (import.meta.env.PROD) registerServiceWorker();

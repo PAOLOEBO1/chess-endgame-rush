@@ -5,9 +5,14 @@ const KEY = 'endgameRush:v1:settings';
 interface Settings {
   /** Répétition espacée des erreurs (sinon : liste libre des erreurs à retravailler). */
   spacedRepetition: boolean;
+  /** Derniers choix de l'accueil (mode, thème, sous-thème, niveau de départ ; null = automatique). */
+  lastMode: string | null;
+  lastTheme: string | null;
+  lastSub: string | null;
+  lastStart: number | null;
 }
 
-const DEFAULTS: Settings = { spacedRepetition: true };
+const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastStart: null };
 
 export function getSettings(): Settings {
   try {

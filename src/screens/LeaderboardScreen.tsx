@@ -89,7 +89,7 @@ export function LeaderboardScreen({ onHome, onAccount, signedIn }: { onHome: () 
         </ol>
       )}
 
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-stone-400">
         {data?.computedAt && `Mis à jour à ${new Date(data.computedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (toutes les 5 min). `}
         Participation volontaire, sous un pseudo.{' '}
         <button type="button" onClick={onAccount} className="text-sky-400 hover:underline">

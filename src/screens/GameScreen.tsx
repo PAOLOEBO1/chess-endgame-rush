@@ -156,7 +156,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           </button>
         </div>
 
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-400">
           Verdict : {timings.verdictMs ?? '–'} ms · Réponse adverse : {timings.opponentMs ?? '–'} ms
           {timings.source && ` (${timings.source === 'tablebase' ? 'table de finales' : 'Stockfish'})`}
         </p>

@@ -99,12 +99,17 @@ export function HomeScreen(p: Props) {
   const [sound, setSound] = useState(isSoundOn);
   return (
     <div className={`mx-auto max-w-5xl px-4 ${p.compact ? 'py-4' : 'py-8'}`}>
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className={`font-extrabold text-stone-50 ${p.compact ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>♔ Chess Endgame Rush</h1>
-          {!p.compact && <p className="mt-2 text-stone-400">Finales de parties réelles, jugées coup par coup (table de finales et Stockfish).</p>}
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className={`font-extrabold text-stone-50 ${p.compact ? 'text-2xl' : 'text-2xl sm:text-4xl'}`}>
+            ♔ <span className="sm:hidden">Endgame Rush</span>
+            <span className="hidden sm:inline">Chess Endgame Rush</span>
+          </h1>
+          {!p.compact && (
+            <p className="mt-2 hidden text-stone-400 sm:block">Finales de parties réelles, jugées coup par coup (table de finales et Stockfish).</p>
+          )}
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex shrink-0 flex-nowrap justify-end gap-2">
         {!p.compact && <InstallButton />}
         {p.onLeaderboard && !p.compact && (
           <button
@@ -122,8 +127,9 @@ export function HomeScreen(p: Props) {
           onClick={p.onProgress}
           className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
           title="Joueurs et progression"
+          aria-label={`Joueurs et progression (profil : ${p.playerName ?? 'invité'})`}
         >
-          👤 {p.playerName ?? 'Invité'} · 📈
+          👤 <span className="hidden max-w-[10rem] truncate align-bottom sm:inline-block">{p.playerName ?? 'Invité'} · </span>📈
         </button>
         <button
           type="button"
@@ -250,7 +256,7 @@ export function HomeScreen(p: Props) {
             )}
           </div>
           <div>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-400">Niveau de départ <span className="font-normal normal-case text-stone-500">(facultatif)</span></h2>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-400">Niveau de départ <span className="font-normal normal-case text-stone-400">(facultatif)</span></h2>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -282,7 +288,8 @@ export function HomeScreen(p: Props) {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
+          {/* Sur téléphone, « Jouer » reste collé en bas de l'écran. */}
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-4 border-t border-stone-800 bg-stone-900/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <button
               type="button"
               disabled={!p.poolSize}
@@ -361,7 +368,7 @@ export function HomeScreen(p: Props) {
       )}
 
       {!p.compact && (
-        <footer className="mt-10 text-xs text-stone-500">
+        <footer className="mt-10 text-xs text-stone-400">
           Positions de parties réelles : base de puzzles Lichess (licence CC0). Jugement : table de finales Syzygy (API Lichess)
           et Stockfish. Échiquier : chessground (Lichess). Logiciel libre sous licence GPL v3.
           <div className="mt-2 flex flex-wrap gap-4">

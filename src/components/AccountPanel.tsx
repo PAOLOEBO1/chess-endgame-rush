@@ -248,7 +248,7 @@ export function AccountPanel({ account, playerId, playerName }: { account: Cloud
         {tab === 'reset' ? '← Retour à la connexion' : 'Mot de passe oublié ?'}
       </button>
       {tab === 'signup' && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-400">
           À la connexion, le profil sélectionné et tout son historique sont envoyés sur le compte, puis retrouvés sur vos autres
           appareils. Données conservées : email, pseudo, puzzles et parties. Aucun autre usage.
         </p>

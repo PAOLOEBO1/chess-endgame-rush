@@ -128,7 +128,7 @@ export function TypeProfile({
           <span className="text-stone-400">±{global.rd} · {global.games} puzzles notés</span>
         </p>
       )}
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-stone-400">
         Elo perso : calculé comme sur Lichess (Glicko-2, départ 1500), sur tout l’historique, première tentative de chaque puzzle ;
         « ? » = provisoire. Précision = puzzles réussis / tentés. « + difficile réussi » = Elo du puzzle le plus difficile réussi ; « bute vers » = Elo moyen
         des puzzles manqués. Un type joué moins de {MIN_ATTEMPTS} fois n’est pas placé sur le radar.
@@ -172,10 +172,10 @@ export function TypeProfile({
               <tbody className="tabular-nums text-stone-200">
                 {ranking.map((s, i) => (
                   <tr key={s.id} className="border-t border-stone-700/60" title={s.title}>
-                    <td className="py-1 pr-3 text-stone-500">{i + 1}</td>
+                    <td className="py-1 pr-3 text-stone-400">{i + 1}</td>
                     <td className="py-1 pr-3">
                       {s.label}
-                      {!enough(s) && <span className="ml-1 text-xs text-stone-500">(peu de données)</span>}
+                      {!enough(s) && <span className="ml-1 text-xs text-stone-400">(peu de données)</span>}
                     </td>
                     <td className="py-1 pr-3 text-right">{s.attempts}</td>
                     <td className="py-1 pr-3 text-right font-semibold">{pct(s.rate)}</td>
