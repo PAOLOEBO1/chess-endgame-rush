@@ -1,4 +1,5 @@
 import { SUBCATEGORIES } from '../core/categories';
+import { BASICS_GROUPS } from '../data/puzzlesMock';
 import { CONFIG } from '../core/config';
 import { InstallButton } from '../components/InstallButton';
 import { SOURCE_URL } from './PrivacyScreen';
@@ -71,6 +72,8 @@ interface Props {
   onStartRating: (r: number | null) => void;
   onStart: () => void;
   onTrain: (index: number) => void;
+  /** Exercice « Gain, nulle ou perte ? » (mêmes positions que le mode technique). */
+  onJudgeQuiz: () => void;
   /** Mode technique : nombre de positions ≤ 7 pièces pour le thème, et lancement. */
   techniqueCount: number | null;
   /** Série de jours d'entraînement (joueur sélectionné). */
@@ -333,37 +336,68 @@ export function HomeScreen(p: Props) {
             </span>
           </div>
         </section>
+        <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
+          <h2 className="text-lg font-bold text-stone-50">⚖️ Gain, nulle ou perte ?</h2>
+          <p className="text-sm text-stone-400">
+            10 positions : annonce le résultat avec le meilleur jeu, sans jouer. La table de finales corrige. Idéal pour savoir
+            quand simplifier vers une finale.
+          </p>
+          <button
+            type="button"
+            disabled={!p.techniqueCount}
+            onClick={p.onJudgeQuiz}
+            className="self-start rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
+          >
+            ▶ Série de 10
+          </button>
+        </section>
         <h2 className="mt-6 text-lg font-bold text-stone-50">
           📘 Bases (positions de référence){' '}
           <span className="text-sm font-semibold text-stone-400">
             · {p.basics.filter((b) => p.basicsDone.has(b.id)).length}/{p.basics.length} réussies
           </span>
         </h2>
-        <p className="mt-1 text-sm text-stone-400">Les classiques à connaître, du plus simple au plus difficile, à jouer jusqu’au bout contre la table de finales.</p>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {p.basics.map((b, i) => (
-            <li key={b.id}>
-              <button
-                type="button"
-                onClick={() => p.onTrain(i)}
-                className="flex h-full w-full flex-col gap-2 rounded-xl bg-stone-800 p-4 text-left transition hover:bg-stone-700"
-              >
-                <span className="font-semibold text-stone-50">
-                  {p.basicsDone.has(b.id) && <span title="Déjà réussie">✅ </span>}
-                  {b.title}
-                </span>
-                <span className="text-sm text-stone-400">{materialSignature(b.fen, sideToMove(b.fen))}</span>
-                <span className="mt-auto flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className={`rounded-full px-2 py-0.5 ${b.objective === 'win' ? 'bg-amber-500 text-stone-900' : 'bg-sky-500 text-stone-900'}`}>
-                    {b.objective === 'win' ? 'Gagner' : 'Tenir la nulle'}
-                  </span>
-                  <span className="rounded-full bg-stone-900 px-2 py-0.5 text-stone-300">{LEVEL_LABEL[b.level]}</span>
-                  <span className="rounded-full bg-stone-900 px-2 py-0.5 text-stone-300">{sideToMove(b.fen) === 'w' ? 'Blancs' : 'Noirs'}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-1 text-sm text-stone-400">
+          Les classiques à connaître, thème par thème et du plus simple au plus difficile, à jouer jusqu’au bout contre la table de
+          finales. « Suivant » enchaîne dans cet ordre.
+        </p>
+        {BASICS_GROUPS.map((g, gi) => {
+          const items = g.ids.map((id) => p.basics.find((b) => b.id === id)).filter((b): b is Puzzle => !!b);
+          const done = items.filter((b) => p.basicsDone.has(b.id)).length;
+          // Ouvert par défaut : le premier thème pas encore terminé.
+          const firstOpen = BASICS_GROUPS.findIndex((x) => x.ids.some((id) => !p.basicsDone.has(id)));
+          return (
+            <details key={g.id} open={gi === (firstOpen < 0 ? 0 : firstOpen)} className="mt-3 rounded-xl bg-stone-800/40 p-3">
+              <summary className="cursor-pointer select-none font-semibold text-stone-100">
+                {g.label} <span className="text-sm text-stone-400">· {done}/{items.length}{done === items.length ? ' ✅' : ''}</span>
+              </summary>
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {items.map((b) => (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      onClick={() => p.onTrain(p.basics.indexOf(b))}
+                      className="flex h-full w-full flex-col gap-2 rounded-xl bg-stone-800 p-4 text-left transition hover:bg-stone-700"
+                    >
+                      <span className="font-semibold text-stone-50">
+                        {p.basicsDone.has(b.id) && <span title="Déjà réussie">✅ </span>}
+                        {b.title}
+                      </span>
+                      <span className="text-sm text-stone-400">{materialSignature(b.fen, sideToMove(b.fen))}</span>
+                      <span className="mt-auto flex flex-wrap gap-2 text-xs font-semibold">
+                        <span className={`rounded-full px-2 py-0.5 ${b.objective === 'win' ? 'bg-amber-500 text-stone-900' : 'bg-sky-500 text-stone-900'}`}>
+                          {b.objective === 'win' ? 'Gagner' : 'Tenir la nulle'}
+                        </span>
+                        <span className="rounded-full bg-stone-900 px-2 py-0.5 text-stone-300">{LEVEL_LABEL[b.level]}</span>
+                        <span className="rounded-full bg-stone-900 px-2 py-0.5 text-stone-300">{sideToMove(b.fen) === 'w' ? 'Blancs' : 'Noirs'}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          );
+        })}
         </>
       )}
 

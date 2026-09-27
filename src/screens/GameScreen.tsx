@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Board, type MarkTone } from '../components/board/Board';
 import { feedbackFor, type Tone } from '../components/hud/feedback';
 import { TRAINING_RULES, type ModeRules } from '../core/config';
@@ -35,15 +35,43 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
   const { state, timings, playMove, reset, takeBack } = usePuzzlePlayer(puzzle, rules, judge);
   const feedback = feedbackFor(state);
 
+  // Indices progressifs : 1 = plan (idée clé), 2 = pièce à jouer, 3 = coup.
+  // Une réussite avec indice ne valide pas la position (comptée comme à retravailler).
+  const [planShown, setPlanShown] = useState(false);
+  const [hintLevel, setHintLevel] = useState(0); // pour la position affichée (2 ou 3)
+  const [hintMove, setHintMove] = useState<string | null>(null);
+  const [hintBusy, setHintBusy] = useState(false);
+  const hintsUsed = useRef(0);
+  useEffect(() => {
+    setHintLevel(0);
+    setHintMove(null);
+  }, [state.fen]);
+  const askHint = async (level: 2 | 3) => {
+    hintsUsed.current += 1;
+    setHintLevel(level);
+    if (hintMove) return;
+    setHintBusy(true);
+    try {
+      setHintMove(await judge.hint(state.fen));
+    } catch {
+      setHintMove(null);
+    } finally {
+      setHintBusy(false);
+    }
+  };
+
   // Archivage : première issue de chaque tentative (un « Recommencer » en crée une nouvelle).
   const archived = useRef(false);
   useEffect(() => {
-    if (state.phase === 'awaitingPlayer' && state.moves.length === 0) archived.current = false;
+    if (state.phase === 'awaitingPlayer' && state.moves.length === 0) {
+      archived.current = false;
+      if (state.takebacks === 0) hintsUsed.current = 0;
+    }
     if (!archived.current && (state.phase === 'solved' || state.phase === 'failed')) {
       archived.current = true;
-      onAttempt?.(puzzle, state.phase === 'solved');
+      onAttempt?.(puzzle, state.phase === 'solved' && hintsUsed.current === 0);
     }
-  }, [state.phase, state.moves.length, puzzle, onAttempt]);
+  }, [state.phase, state.moves.length, state.takebacks, puzzle, onAttempt]);
   const playerIsWhite = state.playerColor === 'w';
   const turnIsWhite = state.fen.split(' ')[1] === 'w';
   const finished = state.phase === 'solved' || state.phase === 'failed' || state.phase === 'error';
@@ -53,9 +81,15 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
     if (state.phase === 'failed' && state.verdict?.kind === 'bad' && state.lastMove) {
       list.push({ square: state.lastMove.to, tone: 'bad' });
     }
+    if (state.phase === 'awaitingPlayer' && hintLevel >= 2 && hintMove) list.push({ square: hintMove.slice(0, 2), tone: 'hint' });
     return list;
-  }, [state.phase, state.verdict, state.lastMove]);
-  const arrow = state.phase === 'failed' && state.verdict?.kind === 'bad' && state.verdict.bestUci[0] ? parseUci(state.verdict.bestUci[0]) : null;
+  }, [state.phase, state.verdict, state.lastMove, hintLevel, hintMove]);
+  const arrow =
+    state.phase === 'failed' && state.verdict?.kind === 'bad' && state.verdict.bestUci[0]
+      ? parseUci(state.verdict.bestUci[0])
+      : state.phase === 'awaitingPlayer' && hintLevel === 3 && hintMove
+        ? parseUci(hintMove)
+        : null;
 
   // Numérotation des coups à partir du FEN de départ.
   const startMoveNumber = Number(puzzle.fen.split(' ')[5] ?? 1);
@@ -121,7 +155,44 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           )}
         </div>
 
-        <p className="rounded-xl bg-stone-800/60 px-4 py-3 text-sm text-stone-300">💡 {puzzle.concept}</p>
+        <div className="flex flex-col gap-2 rounded-xl bg-stone-800/60 px-4 py-3 text-sm text-stone-300">
+          {planShown ? (
+            <p>💡 {puzzle.concept}</p>
+          ) : (
+            <p className="text-stone-400">Cherche d’abord seul. Besoin d’aide ? Les indices viennent un par un.</p>
+          )}
+          {state.phase === 'awaitingPlayer' && (
+            <div className="flex flex-wrap gap-2">
+              {!planShown && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hintsUsed.current += 1;
+                    setPlanShown(true);
+                  }}
+                  className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600"
+                >
+                  💡 Indice 1 : le plan
+                </button>
+              )}
+              {planShown && hintLevel < 2 && (
+                <button type="button" onClick={() => void askHint(2)} className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600">
+                  🎯 Indice 2 : la pièce à jouer
+                </button>
+              )}
+              {hintLevel === 2 && (
+                <button type="button" onClick={() => void askHint(3)} className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600">
+                  ➡️ Indice 3 : le coup
+                </button>
+              )}
+              {hintBusy && <span className="self-center text-stone-400">Recherche…</span>}
+              {hintLevel >= 2 && !hintBusy && !hintMove && <span className="self-center text-stone-400">Indice indisponible pour cette position.</span>}
+            </div>
+          )}
+          {hintsUsed.current > 0 && (
+            <p className="text-xs text-stone-400">Avec un indice, la position ne compte pas comme réussie : refais-la sans aide pour la valider ✅.</p>
+          )}
+        </div>
 
         {moveList.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm text-stone-300">
@@ -144,7 +215,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
               ↶ Réessayer ce coup
             </button>
           )}
-          <button type="button" onClick={reset} className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">
+          <button type="button" onClick={() => { reset(); setPlanShown(false); }} className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">
             ↺ Recommencer
           </button>
           <button

@@ -20,3 +20,10 @@ for (const p of PUZZLES_MOCK) {
     assert.ok(countPieces(p.fen) <= CONFIG.tablebase.maxPieces);
   });
 }
+
+test('parcours Bases : chaque position est rangée dans exactement un thème', async () => {
+  const { BASICS_GROUPS, PUZZLES_MOCK } = await import('../src/data/puzzlesMock');
+  const ranged = BASICS_GROUPS.flatMap((g) => g.ids);
+  assert.equal(new Set(ranged).size, ranged.length);
+  assert.deepEqual([...ranged].sort(), PUZZLES_MOCK.map((p) => p.id).sort());
+});

@@ -38,7 +38,7 @@ export const CONFIG = {
   },
   modes: {
     /** Entraînement (jalon 1) : jusqu'au mat, avec une limite de sécurité. */
-    training: { maxPlayerMoves: null as number | null, hardCapMoves: 50, drawHoldMoves: 6 },
+    training: { maxPlayerMoves: null as number | null, hardCapMoves: 50, drawHoldMoves: 15 },
     /**
      * Décision H : 6 coups du joueur maximum par puzzle en mode Rush.
      * Storm : 3 min, +3 s par réussite, −10 s par erreur (cahier des charges).

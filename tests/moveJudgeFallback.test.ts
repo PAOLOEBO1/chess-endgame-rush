@@ -78,3 +78,15 @@ test('entraînement (nulle) : tirage entre les coups que Stockfish juge presque 
   for (let i = 0; i < 40; i++) seen.add(await judge.reply(FEN, { objective: 'draw', previousUci: [], vary: true }));
   assert.deepEqual([...seen].sort(), ['e1d2', 'e1f1']); // variété, jamais Ke2 (trop faible) ni Kd1
 });
+
+test('indice : le meilleur coup de la table, sinon celui de Stockfish', async () => {
+  const { tbMove, tbPosition } = await import('./fixtures');
+  const table: TablebaseClient = {
+    lookup: async () => tbPosition('win', [tbMove('e1f1', 'Kf1', 'draw', 0), tbMove('e1d2', 'Kd2', 'loss', -20), tbMove('e2e4', 'e4', 'loss', -30)], 21),
+    prefetch: () => undefined,
+    paused: () => false,
+    stats: () => ({ requests: 0, cacheHits: 0, lastLatencyMs: null }),
+  };
+  assert.equal(await createMoveJudge(table, engine).hint(FEN), 'e1d2'); // mat le plus rapide
+  assert.equal(await createMoveJudge(deadTable('network'), engine).hint(FEN), 'e1d2'); // repli Stockfish
+});

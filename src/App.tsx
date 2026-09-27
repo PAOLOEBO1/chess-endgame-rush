@@ -8,13 +8,14 @@ import { dailyPick, dayKey, dayStreak } from './core/motivation';
 import { familyOf } from './core/material';
 import type { Puzzle } from './core/types';
 import { loadLichessPuzzles } from './data/lichessRepository';
-import { PUZZLES_MOCK } from './data/puzzlesMock';
+import { BASICS_GROUPS, PUZZLES_MOCK } from './data/puzzlesMock';
 import { readEmbedOptions } from './embed';
 import { GameScreen } from './screens/GameScreen';
 import { HomeScreen, type HomeMode, type ThemeChoice } from './screens/HomeScreen';
 import { RushScreen } from './screens/RushScreen';
 import { getBest, scoreKey } from './services/highScores';
 import { judge } from './services/judge';
+import { tablebase } from './services/tablebaseClient';
 import { useCloudAccount } from './hooks/useCloudAccount';
 import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
@@ -22,7 +23,7 @@ import { playerStore } from './services/players';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' };
 
 const embed = readEmbedOptions();
 
@@ -30,6 +31,7 @@ const embed = readEmbedOptions();
 const loadProgress = () => import('./screens/ProgressScreen');
 const loadPrivacy = () => import('./screens/PrivacyScreen');
 const loadLeaderboard = () => import('./screens/LeaderboardScreen');
+const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
 const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
 const ProgressScreen = lazy(() => loadProgress().then((m) => ({ default: m.ProgressScreen })));
 const PrivacyScreen = lazy(() => loadPrivacy().then((m) => ({ default: m.PrivacyScreen })));
@@ -46,7 +48,10 @@ function classify(p: Puzzle): Puzzle {
   const family = p.family ?? familyOf(p.fen);
   return { ...p, family, subcategory: subcategoryOf(p.fen, family) };
 }
-const BASICS = PUZZLES_MOCK.map(classify);
+// Ordre du parcours conseillé (thème par thème), puis toute position non rangée.
+const PARCOURS = BASICS_GROUPS.flatMap((g) => g.ids);
+const rank = (id: string) => (PARCOURS.includes(id) ? PARCOURS.indexOf(id) : PARCOURS.length);
+const BASICS = [...PUZZLES_MOCK].sort((a, b) => rank(a.id) - rank(b.id)).map(classify);
 
 /**
  * Sous-thèmes exacts couverts par les « Bases » (Lucena, Philidor, dame contre
@@ -282,6 +287,10 @@ export default function App() {
     return shell(<PrivacyScreen onHome={() => setScreen({ name: 'home' })} />);
   }
 
+  if (screen.name === 'judgeQuiz') {
+    return shell(<JudgeQuizScreen pool={techniquePool} tablebase={tablebase} onHome={() => setScreen({ name: 'home' })} />);
+  }
+
   if (screen.name === 'leaderboard') {
     return shell(
       <LeaderboardScreen
@@ -434,6 +443,7 @@ export default function App() {
         setScreen({ name: 'daily' });
       }}
       onTechnique={() => nextTechnique(0)}
+      onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
       poolSize={pool ? pool.length : null}
       loadError={loadError}
       best={mode === 'training' ? null : getBest(key)}

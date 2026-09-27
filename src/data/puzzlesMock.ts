@@ -1,7 +1,9 @@
-// Collection « Bases » : 17 positions théoriques (classées par difficulté).
+// Collection « Bases » : 21 positions théoriques (classées par difficulté, regroupées dans BASICS_GROUPS).
 // Les 11 premières ont été vérifiées le 23/09/2026 avec la table de finales Lichess ;
 // les 6 ajoutées le 26/09/2026 (Réti, pion éloigné, mauvais fou, pat dame/pion,
 // Vancura, fou + cavalier) ont été contrôlées avec Stockfish, à confirmer par la table.
+// Les 4 ajoutées le 27/09/2026 (cavalier contre pion, dame contre tour, tour contre fou,
+// fous de couleurs opposées) : contrôlées avec Stockfish, à confirmer par la table.
 // Vérification (résultat théorique conforme à `objective`) : npm run verify:puzzles
 // Les `rating` sont des ESTIMATIONS à recalibrer ; ils servent seulement à
 // ordonner la difficulté.
@@ -120,6 +122,26 @@ export const PUZZLES_MOCK: Puzzle[] = [
     concept: 'Avec un pion en c2, le coin a1 est un refuge : si la dame prend le pion, c’est pat.',
   },
   {
+    id: 'bases-dame-tour-enfilade',
+    title: 'Dame contre tour : l’attaque double',
+    fen: '8/8/8/2k5/8/8/1r6/3QK3 w - - 0 1',
+    objective: 'win',
+    collection: 'bases',
+    level: 'intermediaire',
+    rating: 1300,
+    concept: 'Une tour loin de son roi est une cible : cherche un échec qui attaque aussi la tour.',
+  },
+  {
+    id: 'bases-cavalier-pion',
+    title: 'Cavalier contre pion',
+    fen: '7K/8/8/8/8/k7/1p1N4/8 w - - 0 1',
+    objective: 'draw',
+    collection: 'bases',
+    level: 'intermediaire',
+    rating: 1350,
+    concept: 'Le cavalier arrête le pion en contrôlant sa case de promotion ; un échec peut faire gagner le temps qui manque.',
+  },
+  {
     id: 'bases-lucena',
     title: 'Position de Lucena',
     fen: '1K1k4/1P6/8/8/8/8/r7/2R5 w - - 0 1',
@@ -160,6 +182,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     concept: 'Les fous côte à côte forment une barrière ; repousse le roi vers un coin avec l’aide de ton roi.',
   },
   {
+    id: 'bases-tour-fou-bon-coin',
+    title: 'Tour contre fou : le bon coin',
+    fen: '7k/2R5/5K2/8/8/8/8/1b6 b - - 0 1',
+    objective: 'draw',
+    collection: 'bases',
+    level: 'avance',
+    rating: 1650,
+    concept: 'Ton roi tient dans le coin de la couleur opposée à ton fou : le fou y pare les échecs sans jamais être cloué.',
+  },
+  {
     id: 'bases-vancura',
     title: 'Défense Vancura',
     fen: 'R7/6k1/P4r2/8/8/2K5/8/8 b - - 0 1',
@@ -168,6 +200,16 @@ export const PUZZLES_MOCK: Puzzle[] = [
     level: 'avance',
     rating: 1700,
     concept: 'Ta tour attaque le pion de côté, sur la 6e rangée ; la tour blanche reste coincée devant lui et ton roi garde g7/h7.',
+  },
+  {
+    id: 'bases-fous-opposes',
+    title: 'Fous de couleurs opposées',
+    fen: '8/4k1b1/8/4PP2/4K3/3B4/8/8 b - - 0 1',
+    objective: 'draw',
+    collection: 'bases',
+    level: 'avance',
+    rating: 1750,
+    concept: 'Bloque les pions sur les cases que ton fou contrôle, roi devant eux, et ne quitte jamais la grande diagonale.',
   },
   {
     id: 'bases-mat-fou-cavalier',
@@ -179,4 +221,13 @@ export const PUZZLES_MOCK: Puzzle[] = [
     rating: 2000,
     concept: 'Seul un coin de la couleur du fou permet le mat (ici a1 ou h8, cases noires) : repousse le roi vers l’un d’eux.',
   },
+];
+
+/** Parcours conseillé : les Bases regroupées par thème, dans l'ordre où les apprendre. */
+export const BASICS_GROUPS: { id: string; label: string; ids: string[] }[] = [
+  { id: 'mats', label: '♚ Mats de base', ids: ['bases-mat-deux-tours', 'bases-mat-dame', 'bases-mat-tour', 'bases-mat-deux-fous', 'bases-mat-fou-cavalier'] },
+  { id: 'pions', label: '♟ Finales de pions', ids: ['bases-regle-du-carre', 'bases-opposition-defense', 'bases-opposition-attaque', 'bases-pion-eloigne', 'bases-reti'] },
+  { id: 'tours', label: '♜ Finales de tours', ids: ['bases-tour-contre-pion', 'bases-lucena', 'bases-philidor', 'bases-vancura', 'bases-tour-fou-bon-coin'] },
+  { id: 'dames', label: '♛ Finales de dames', ids: ['bases-dame-contre-pion', 'bases-dame-pion-pat', 'bases-dame-tour-enfilade'] },
+  { id: 'mineures', label: '♝ Pièces mineures', ids: ['bases-mauvais-fou', 'bases-cavalier-pion', 'bases-fous-opposes'] },
 ];

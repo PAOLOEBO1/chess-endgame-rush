@@ -9,7 +9,7 @@ import { judgeByEngine, toCp } from '../core/judge/engineJudge';
 import { applyLineTolerance, isOnLine, preferLineReply } from '../core/judge/lineRules';
 import { outcomeOf } from '../core/judge/outcome';
 import { chooseDefense, pickNearBest, strongestDefenses } from '../core/judge/opponent';
-import { judgeMove, type Verdict } from '../core/judge/tablebaseJudge';
+import { correctMoves, judgeMove, type Verdict } from '../core/judge/tablebaseJudge';
 import type { Objective } from '../core/types';
 import type { Engine } from './stockfish';
 import { TablebaseError, type TablebaseClient } from './tablebaseClient';
@@ -38,6 +38,8 @@ export interface MoveJudge {
   prefetch(fen: string, ctx: JudgeContext): void;
   /** Vérifie que l'objectif annoncé correspond bien à la position. */
   check(fen: string, objective: Objective): Promise<boolean>;
+  /** Indice : meilleur coup (UCI) du joueur au trait, selon la table ou Stockfish. */
+  hint(fen: string): Promise<string | null>;
 }
 
 const lineMove = (ctx: JudgeContext) =>
@@ -168,6 +170,14 @@ export function createMoveJudge(tablebase: TablebaseClient, engine: Engine): Mov
       if (expected && applyUci(fen, expected)) return expected;
       const analysis = await engine.analyse(fen, movetime);
       return analysis.bestmove;
+    },
+
+    async hint(fen) {
+      const viaEngine = async () => (await engine.analyse(fen, movetime)).bestmove;
+      if (source(fen) === 'tablebase') {
+        return withFallback(async () => correctMoves(await tablebase.lookup(fen))[0]?.uci ?? null, viaEngine);
+      }
+      return viaEngine();
     },
 
     async check(fen, objective) {
