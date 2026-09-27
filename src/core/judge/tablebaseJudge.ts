@@ -11,7 +11,9 @@ export type BadReason =
   /** Le coup perd (la position devient perdante). */
   | 'loses'
   /** Le gain est conservé mais le coup rallonge trop le chemin (décision G). */
-  | 'too-slow';
+  | 'too-slow'
+  /** Position perdue : le coup abrège trop la résistance. */
+  | 'gives-up';
 
 export type Verdict =
   | { kind: 'good'; san: string; outcome: Outcome; isBest: boolean; verified: boolean }
@@ -34,6 +36,8 @@ export type Verdict =
 export interface JudgeOptions {
   /** Tolérance de lenteur, en coups (décision G = 10). */
   slowMoveToleranceMoves: number;
+  /** Position perdue : résistance écourtée tolérée, en coups (absent = tout coup perdant est accepté). */
+  resistToleranceMoves?: number;
 }
 
 type Metric = 'dtm' | 'dtz';
@@ -122,6 +126,29 @@ export function judgeMove(position: TbPosition, uci: string, options: JudgeOptio
       };
     }
     return { kind: 'good', san: played.san, outcome: after, isBest: extraPlies <= 0, verified: true };
+  }
+
+  // Position perdue (défense de « l'autre camp ») : résister le plus longtemps possible.
+  if (required === 'loss' && options.resistToleranceMoves !== undefined) {
+    const losing = position.moves.filter((m) => outcomeAfterMove(m) === 'loss');
+    const metric = losing.every((m) => m.dtm !== null) ? 'dtm' : 'dtz';
+    const reference = metric === 'dtz' ? losing.filter((m) => !m.zeroing) : losing;
+    const comparable = reference.length > 0 && !(metric === 'dtz' && played.zeroing);
+    const longest = comparable ? Math.max(...reference.map((m) => distance(m, metric))) : 0;
+    const shortened = comparable ? longest - distance(played, metric) : 0;
+    if (shortened > options.resistToleranceMoves * 2) {
+      const bestResist = [...reference].sort((a, b) => distance(b, metric) - distance(a, metric)).slice(0, 3);
+      return {
+        kind: 'bad',
+        san: played.san,
+        reason: 'gives-up',
+        outcome: after,
+        extraMoves: Math.ceil(shortened / 2),
+        bestMoves: bestResist.map((m) => m.san),
+        bestUci: bestResist.map((m) => m.uci),
+      };
+    }
+    return { kind: 'good', san: played.san, outcome: after, isBest: shortened <= 0, verified: true };
   }
 
   // Objectif nulle (ou mieux) atteint.

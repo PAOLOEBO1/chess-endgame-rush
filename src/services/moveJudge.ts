@@ -51,7 +51,10 @@ export function createMoveJudge(tablebase: TablebaseClient, engine: Engine): Mov
 
   async function judgeWithTablebase(move: AppliedMove, ctx: JudgeContext): Promise<Verdict> {
     const before = await tablebase.lookup(move.fenBefore);
-    const raw = judgeMove(before, move.uci, { slowMoveToleranceMoves: CONFIG.judge.slowMoveToleranceMoves });
+    const raw = judgeMove(before, move.uci, {
+      slowMoveToleranceMoves: CONFIG.judge.slowMoveToleranceMoves,
+      resistToleranceMoves: CONFIG.judge.resistToleranceMoves,
+    });
     if (!raw) throw new Error(`Coup ${move.san} absent de la réponse de la table.`);
     return applyLineTolerance(raw, move.uci, ctx.previousUci, ctx.solution);
   }

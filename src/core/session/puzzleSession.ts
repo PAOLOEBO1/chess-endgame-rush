@@ -23,7 +23,9 @@ export type EndReason =
   | 'still-winning' // limite de coups atteinte, gain conservé
   | 'bad-move' // verdict négatif
   | 'drawn-instead' // la partie devient nulle alors qu'il fallait gagner
-  | 'too-long'; // limite de sécurité dépassée
+  | 'too-long' // limite de sécurité dépassée
+  | 'resisted' // « l'autre camp » : maté, mais après la meilleure résistance
+  | 'mated'; // le joueur est maté
 
 export interface PlayedMove {
   san: string;
@@ -178,6 +180,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         lastMove: { from: m.from, to: m.to },
         phase: 'awaitingPlayer',
       };
+      if (m.isCheckmate) return finish(next, !!state.puzzle.resist, state.puzzle.resist ? 'resisted' : 'mated');
       if (drawnOnBoard(m, seen)) {
         return state.puzzle.objective === 'draw'
           ? finish(next, true, 'draw-reached')

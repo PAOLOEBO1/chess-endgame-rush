@@ -90,3 +90,25 @@ test('mauvais coup : le meilleur coup indique « mat en N » quand la table donn
   // Qd7 : l'adversaire est maté en 12 demi-coups → mat en 12/2 + 1 = 7 coups.
   assert.equal(v?.kind === 'bad' && v.bestMateIn, 7);
 });
+
+test('défense d’une position perdue : un coup qui abrège trop la résistance est refusé', () => {
+  // Le camp au trait est perdu ; catégories du point de vue de l'adversaire : "win" = l'adversaire gagne.
+  const LOST = tbPosition(
+    'loss',
+    [
+      tbMove('e8d8', 'Kd8', 'win', 30), // mat en 30 demi-coups : meilleure résistance
+      tbMove('e8f8', 'Kf8', 'win', 28), // 1 coup de moins : toléré (2 coups)
+      tbMove('e8e7', 'Ke7', 'win', 12), // 9 coups de moins : refusé
+    ],
+    -31,
+  );
+  const opts = { slowMoveToleranceMoves: 10, resistToleranceMoves: 2 };
+  assert.equal(judgeMove(LOST, 'e8d8', opts)?.kind, 'good');
+  assert.equal(judgeMove(LOST, 'e8f8', opts)?.kind, 'good');
+  const v = judgeMove(LOST, 'e8e7', opts);
+  assert.equal(v?.kind === 'bad' && v.reason, 'gives-up');
+  assert.equal(v?.kind === 'bad' && v.extraMoves, 9);
+  assert.deepEqual(v?.kind === 'bad' && v.bestMoves.slice(0, 2), ['Kd8', 'Kf8']);
+  // Sans l'option, comportement inchangé : tout coup perdant passe.
+  assert.equal(judgeMove(LOST, 'e8e7', OPTS)?.kind, 'good');
+});

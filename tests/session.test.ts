@@ -104,3 +104,17 @@ test('entraînement : reprendre le mauvais coup ramène à la position d’avant
   // Sans échec par mauvais coup, la reprise est sans effet.
   assert.equal(sessionReducer(s0, { type: 'TAKEBACK' }), s0);
 });
+
+test('le joueur maté : échec, sauf en défense de « l’autre camp » où il a résisté au mieux', () => {
+  for (const resist of [false, true]) {
+    const p = { ...puzzle('7k/8/6K1/8/8/8/8/R7 b - - 0 1', 'draw'), resist };
+    const s0 = initialSession(p, RULES);
+    const s1 = play(s0, 'h8', 'g8', good('Kg8'));
+    // L'adversaire (Blancs) mate : Ra8#.
+    const mate = applyMove(s1.fen, 'a1', 'a8');
+    assert.ok(mate?.isCheckmate);
+    const s2 = sessionReducer(s1, { type: 'OPPONENT_MOVED', move: mate! });
+    assert.equal(s2.phase, resist ? 'solved' : 'failed');
+    assert.equal(s2.endReason, resist ? 'resisted' : 'mated');
+  }
+});

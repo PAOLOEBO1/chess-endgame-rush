@@ -2,13 +2,15 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { subcategoryOf } from './core/categories';
 import { CONFIG, rushRules, TECHNIQUE_RULES, TRAINING_RULES } from './core/config';
 import { countPieces } from './core/fen';
+import { applyUci } from './core/chessRules';
 import { dueNow, reviewItems } from './core/review';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
-import { familyOf } from './core/material';
+import { FAMILY_LABEL, familyOf } from './core/material';
 import type { Puzzle } from './core/types';
 import { loadLichessPuzzles } from './data/lichessRepository';
 import { BASICS_GROUPS, PUZZLES_MOCK } from './data/puzzlesMock';
+import { LESSONS } from './data/lessons';
 import { readEmbedOptions } from './embed';
 import { GameScreen } from './screens/GameScreen';
 import { HomeScreen, type HomeMode, type ThemeChoice } from './screens/HomeScreen';
@@ -23,7 +25,7 @@ import { playerStore } from './services/players';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number };
 
 const embed = readEmbedOptions();
 
@@ -31,6 +33,7 @@ const embed = readEmbedOptions();
 const loadProgress = () => import('./screens/ProgressScreen');
 const loadPrivacy = () => import('./screens/PrivacyScreen');
 const loadLeaderboard = () => import('./screens/LeaderboardScreen');
+const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
 const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
 const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
 const ProgressScreen = lazy(() => loadProgress().then((m) => ({ default: m.ProgressScreen })));
@@ -248,6 +251,19 @@ export default function App() {
     return r && !r.provisional ? r.r : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId, theme, effSub, screen]);
+  // Conseil automatique : la famille de finales la plus faible (Elo le plus bas,
+  // au moins 10 puzzles joués et 2 familles comparables), à retravailler en Storm.
+  const weakness = useMemo(() => {
+    if (!playerId) return null;
+    const ratings = ratingsByKey(playerStore.history(playerId).attempts);
+    const rated = (['pions', 'tours', 'dames', 'fous', 'cavaliers', 'mixte'] as const)
+      .map((f) => ({ family: f, rating: ratings.get(`f:${f}`) }))
+      .filter((x) => x.rating && x.rating.games >= 10);
+    if (rated.length < 2) return null;
+    const worst = rated.reduce((a, b) => (b.rating!.r < a.rating!.r ? b : a));
+    return { family: worst.family, label: FAMILY_LABEL[worst.family], elo: worst.rating!.r };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId, screen]);
   const reviewDue = useMemo(() => (spaced ? dueNow(reviewAll, Date.now()) : reviewAll), [reviewAll, spaced]);
   const reviewFull = useMemo(() => new Set(reviewAll.filter((i) => i.full).map((i) => i.id)), [reviewAll]);
   const reviewed = useRef(new Set<string>()); // une seule tentative comptée par puzzle et par révision
@@ -281,10 +297,52 @@ export default function App() {
     [playerId, screen],
   );
 
+  /**
+   * « L'autre camp » : l'ordinateur joue le premier coup du camp gagnant (le meilleur
+   * selon la table), puis le joueur défend la position perdue le plus longtemps possible.
+   */
+  const playOtherSide = useCallback(async (index: number) => {
+    const base = BASICS[index];
+    const uci = await judge.hint(base.fen).catch(() => null);
+    const first = uci ? applyUci(base.fen, uci) : null;
+    if (!first) return;
+    setScreen({
+      name: 'otherSide',
+      index,
+      puzzle: {
+        ...base,
+        id: `${base.id}~defense`,
+        title: `${base.title} — l’autre camp`,
+        fen: first.fen,
+        lastMove: first.uci,
+        objective: 'draw',
+        resist: true,
+        concept: 'Position perdue avec le meilleur jeu : à chaque coup, choisis la défense qui retarde le plus l’échéance et guette l’erreur adverse.',
+      },
+    });
+  }, []);
+
   const playerName = playerStore.listPlayers().find((p) => p.id === playerId)?.name ?? null;
 
   if (screen.name === 'privacy') {
     return shell(<PrivacyScreen onHome={() => setScreen({ name: 'home' })} />);
+  }
+
+  if (screen.name === 'lesson') {
+    const lesson = LESSONS.find((l) => l.id === screen.id);
+    if (lesson) {
+      return shell(
+        <LessonScreen
+          key={lesson.id}
+          lesson={lesson}
+          onHome={() => setScreen({ name: 'home' })}
+          onPractice={() => {
+            const index = BASICS.findIndex((b) => b.id === lesson.practiceId);
+            setScreen(index >= 0 ? { name: 'training', index } : { name: 'home' });
+          }}
+        />,
+      );
+    }
   }
 
   if (screen.name === 'judgeQuiz') {
@@ -393,6 +451,23 @@ export default function App() {
         onAttempt={onTrainingAttempt}
         onHome={() => setScreen({ name: 'home' })}
         onNext={() => setScreen(screen.index + 1 < BASICS.length ? { name: 'training', index: screen.index + 1 } : { name: 'home' })}
+        onOtherSide={BASICS[screen.index].objective === 'win' ? () => void playOtherSide(screen.index) : undefined}
+      />,
+    );
+  }
+
+  if (screen.name === 'otherSide') {
+    return shell(
+      <GameScreen
+        key={`${screen.puzzle.id}-${screen.puzzle.fen}`}
+        puzzle={screen.puzzle}
+        position={{ index: screen.index, total: BASICS.length }}
+        judge={judge}
+        header="🛡️ L’autre camp : l’ordinateur attaque avec la meilleure méthode, défends le plus longtemps possible"
+        backLabel="← Retour à la position"
+        onAttempt={onTrainingAttempt}
+        onHome={() => setScreen({ name: 'training', index: screen.index })}
+        onNext={() => setScreen(screen.index + 1 < BASICS.length ? { name: 'training', index: screen.index + 1 } : { name: 'home' })}
       />,
     );
   }
@@ -444,6 +519,15 @@ export default function App() {
       }}
       onTechnique={() => nextTechnique(0)}
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
+      weakness={weakness}
+      onWeakness={(family) => {
+        setMode('storm');
+        setTheme(family as ThemeChoice);
+        setSub('all');
+        setScreen({ name: 'rush', run: Date.now() });
+      }}
+      lessons={LESSONS.map((l) => ({ id: l.id, title: l.title }))}
+      onLesson={(id) => setScreen({ name: 'lesson', id })}
       poolSize={pool ? pool.length : null}
       loadError={loadError}
       best={mode === 'training' ? null : getBest(key)}

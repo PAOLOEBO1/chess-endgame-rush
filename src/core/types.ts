@@ -39,6 +39,8 @@ export interface Puzzle {
   themes?: string[];
   /** Lien vers la partie d'origine. */
   gameUrl?: string;
+  /** « L'autre camp » : défendre une position perdue le plus longtemps possible. */
+  resist?: boolean;
 }
 
 /** Résultat théorique vu par un camp. */

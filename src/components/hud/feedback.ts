@@ -19,11 +19,13 @@ export function feedbackFor(state: SessionState): Feedback {
   if (phase === 'judging') return { tone: 'neutral', title: 'Analyse du coup…' };
 
   if (phase === 'solved') {
+    if (endReason === 'held-draw' && puzzle.resist) return { tone: 'success', title: `🏆 Tu as tenu ${state.rules.drawHoldMoves} coups en défendant au mieux !` };
     const titles = {
       checkmate: '🏆 Échec et mat !',
       'held-draw': '🏆 Nulle tenue !',
       'draw-reached': '🏆 Nulle obtenue !',
       'still-winning': '🏆 Gain conservé !',
+      resisted: '🏆 Maté, mais après la meilleure résistance possible !',
     } as Record<string, string>;
     return { tone: 'success', title: titles[endReason ?? ''] ?? '🏆 Réussi !' };
   }
@@ -43,6 +45,13 @@ export function feedbackFor(state: SessionState): Feedback {
           detail: `Tolérance : ${CONFIG.judge.slowMoveToleranceMoves} coups. ${best ?? ''}`.trim(),
         };
       }
+      if (verdict.reason === 'gives-up') {
+        return {
+          tone: 'bad',
+          title: `❌ ${verdict.san} abrège la défense d'environ ${verdict.extraMoves} coups`,
+          detail: best,
+        };
+      }
       if (verdict.reason === 'throws-win') {
         return { tone: 'bad', title: `❌ ${verdict.san} laisse échapper le gain (la position devient nulle)`, detail: best };
       }
@@ -57,6 +66,7 @@ export function feedbackFor(state: SessionState): Feedback {
     }
     if (endReason === 'drawn-instead')
       return { tone: 'bad', title: '❌ Partie nulle', detail: 'Pat, triple répétition ou matériel insuffisant.' };
+    if (endReason === 'mated') return { tone: 'bad', title: '❌ Échec et mat' };
     if (endReason === 'too-long')
       return { tone: 'bad', title: `⌛ Limite de ${state.rules.hardCapMoves} coups atteinte sans conclure` };
     return { tone: 'bad', title: '❌ Échec' };
@@ -76,6 +86,10 @@ export function feedbackFor(state: SessionState): Feedback {
   }
   return {
     tone: 'neutral',
-    title: puzzle.objective === 'win' ? 'Trouve le plan gagnant' : 'Trouve comment tenir la nulle',
+    title: puzzle.resist
+      ? 'Position perdue : résiste le plus longtemps possible'
+      : puzzle.objective === 'win'
+        ? 'Trouve le plan gagnant'
+        : 'Trouve comment tenir la nulle',
   };
 }

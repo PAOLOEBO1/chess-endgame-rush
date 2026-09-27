@@ -35,6 +35,8 @@ export const CONFIG = {
      * par rapport au meilleur coup.
      */
     slowMoveToleranceMoves: 10,
+    /** Défense d'une position perdue (« l'autre camp ») : résistance écourtée tolérée, en coups. */
+    resistToleranceMoves: 2,
   },
   modes: {
     /** Entraînement (jalon 1) : jusqu'au mat, avec une limite de sécurité. */

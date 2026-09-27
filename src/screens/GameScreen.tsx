@@ -29,9 +29,11 @@ interface Props {
   backLabel?: string;
   /** Bandeau au-dessus du titre (ex. état de la révision). */
   header?: string;
+  /** Rejouer la position depuis l'autre camp (défendre une position gagnante). */
+  onOtherSide?: () => void;
 }
 
-export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header }: Props) {
+export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header, onOtherSide }: Props) {
   const { state, timings, playMove, reset, takeBack } = usePuzzlePlayer(puzzle, rules, judge);
   const feedback = feedbackFor(state);
 
@@ -133,7 +135,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
 
         <div className="flex flex-wrap gap-2 text-sm font-semibold">
           <span className={`rounded-full px-3 py-1 ${puzzle.objective === 'win' ? 'bg-amber-500 text-stone-900' : 'bg-sky-500 text-stone-900'}`}>
-            Objectif : {puzzle.objective === 'win' ? 'GAGNER' : 'TENIR LA NULLE'}
+            Objectif : {puzzle.resist ? 'RÉSISTER' : puzzle.objective === 'win' ? 'GAGNER' : 'TENIR LA NULLE'}
           </span>
           <span className="flex items-center gap-2 rounded-full bg-stone-800 px-3 py-1 text-stone-100">
             <span className={`inline-block h-3 w-3 rounded-full border border-stone-500 ${turnIsWhite ? 'bg-white' : 'bg-stone-950'}`} />
@@ -204,6 +206,16 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           </div>
         )}
 
+        {onOtherSide && (
+          <button
+            type="button"
+            onClick={onOtherSide}
+            className="self-start rounded-lg border border-stone-600 px-3 py-1.5 text-sm font-semibold text-stone-200 hover:bg-stone-800"
+            title="L'ordinateur joue le camp gagnant, toi tu défends"
+          >
+            🛡️ Jouer l’autre camp (défendre)
+          </button>
+        )}
         <div className="flex flex-wrap gap-3">
           {state.phase === 'failed' && state.endReason === 'bad-move' && (
             <button

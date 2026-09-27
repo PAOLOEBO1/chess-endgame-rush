@@ -72,6 +72,12 @@ interface Props {
   onStartRating: (r: number | null) => void;
   onStart: () => void;
   onTrain: (index: number) => void;
+  /** Conseil : famille de finales la plus faible du joueur (Elo). */
+  weakness: { family: string; label: string; elo: number } | null;
+  onWeakness: (family: string) => void;
+  /** Leçons guidées (démonstrations commentées). */
+  lessons: { id: string; title: string }[];
+  onLesson: (id: string) => void;
   /** Exercice « Gain, nulle ou perte ? » (mêmes positions que le mode technique). */
   onJudgeQuiz: () => void;
   /** Mode technique : nombre de positions ≤ 7 pièces pour le thème, et lancement. */
@@ -148,6 +154,22 @@ export function HomeScreen(p: Props) {
         </button>
         </div>
       </header>
+
+      {!p.compact && p.weakness && (
+        <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-4">
+          <p className="text-sm text-stone-200">
+            🎯 <strong>Ton point faible :</strong> {p.weakness.label.toLowerCase()} (Elo {p.weakness.elo}). Quelques séries ciblées feront
+            monter ta moyenne.
+          </p>
+          <button
+            type="button"
+            onClick={() => p.onWeakness(p.weakness!.family)}
+            className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-bold text-stone-900 hover:bg-sky-400"
+          >
+            ⚡ Storm sur ce thème
+          </button>
+        </section>
+      )}
 
       {!p.compact && (p.daily || p.streak) && (
         <section className="mb-4 flex flex-wrap items-center gap-3">
@@ -334,6 +356,17 @@ export function HomeScreen(p: Props) {
             <span className="text-sm text-stone-400">
               {p.techniqueCount === null ? 'Chargement…' : `${p.techniqueCount} positions disponibles`}
             </span>
+          </div>
+        </section>
+        <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
+          <h2 className="text-lg font-bold text-stone-50">🎓 Leçons guidées</h2>
+          <p className="text-sm text-stone-400">Les classiques expliqués coup par coup, puis à toi de les jouer.</p>
+          <div className="flex flex-wrap gap-2">
+            {p.lessons.map((l) => (
+              <button key={l.id} type="button" onClick={() => p.onLesson(l.id)} className="rounded-lg bg-stone-700 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
+                {l.title}
+              </button>
+            ))}
           </div>
         </section>
         <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
