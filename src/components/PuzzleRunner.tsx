@@ -6,6 +6,7 @@ import { parseUci } from '../core/fen';
 import type { Puzzle } from '../core/types';
 import { usePuzzlePlayer } from '../hooks/usePuzzlePlayer';
 import type { MoveJudge } from '../services/moveJudge';
+import { useBoardFlash } from './board/useBoardFlash';
 import { MoveInput } from './board/MoveInput';
 import { Board, type MarkTone } from './board/Board';
 import { feedbackFor, type Tone } from './hud/feedback';
@@ -33,6 +34,7 @@ const TONE: Record<Tone, string> = {
 export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banner }: Props) {
   const rules = useMemo(() => rushRules(puzzle.solution), [puzzle]);
   const { state, playMove } = usePuzzlePlayer(puzzle, rules, judge, onPlayerMove);
+  const flash = useBoardFlash(state.phase, state.verdict?.kind);
   const reported = useRef(false);
 
   useEffect(() => {
@@ -80,15 +82,17 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
           {rules.maxPlayerMoves}
         </span>
       </div>
-      <Board
-        fen={state.fen}
-        orientation={state.playerColor}
-        interactive={active && state.phase === 'awaitingPlayer'}
-        lastMove={state.lastMove}
-        marks={marks}
-        arrow={arrow}
-        onMove={(from, to, promotion) => playMove(from, to, promotion)}
-      />
+      <div className={flash}>
+        <Board
+          fen={state.fen}
+          orientation={state.playerColor}
+          interactive={active && state.phase === 'awaitingPlayer'}
+          lastMove={state.lastMove}
+          marks={marks}
+          arrow={arrow}
+          onMove={(from, to, promotion) => playMove(from, to, promotion)}
+        />
+      </div>
       <MoveInput fen={state.fen} enabled={active && state.phase === 'awaitingPlayer'} onMove={(f, t, p) => playMove(f, t, p)} />
       <p className={`min-h-[1.5rem] text-sm font-medium ${banner ? 'text-amber-300' : TONE[feedback.tone]}`} aria-live="polite">
         {banner ?? `${feedback.title}${feedback.detail ? ` — ${feedback.detail}` : ''}`}

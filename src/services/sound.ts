@@ -35,8 +35,19 @@ function tone(freq: number, start: number, duration: number, volume: number, typ
   osc.stop(ctx.currentTime + start + duration + 0.02);
 }
 
+/** Vibration courte sur téléphone (réussite / erreur), liée au même réglage que le son. */
+function vibrate(name: SoundName): void {
+  if (name !== 'success' && name !== 'error') return;
+  try {
+    navigator.vibrate?.(name === 'error' ? [90, 60, 90] : 40);
+  } catch {
+    /* non disponible */
+  }
+}
+
 export function playSound(name: SoundName): void {
   if (!isSoundOn()) return;
+  vibrate(name);
   try {
     ctx ??= new AudioContext();
     if (ctx.state === 'suspended') void ctx.resume();

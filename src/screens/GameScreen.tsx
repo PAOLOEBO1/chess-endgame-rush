@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Board, type MarkTone } from '../components/board/Board';
+import { useBoardFlash } from '../components/board/useBoardFlash';
 import { MoveInput } from '../components/board/MoveInput';
 import { feedbackFor, type Tone } from '../components/hud/feedback';
 import { TRAINING_RULES, type ModeRules } from '../core/config';
 import { parseUci } from '../core/fen';
-import { materialSignature } from '../core/material';
+import { materialSymbols } from '../core/material';
 import type { Puzzle } from '../core/types';
 import { usePuzzlePlayer } from '../hooks/usePuzzlePlayer';
 import type { MoveJudge } from '../services/moveJudge';
@@ -36,6 +37,7 @@ interface Props {
 
 export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header, onOtherSide }: Props) {
   const { state, timings, playMove, reset, takeBack } = usePuzzlePlayer(puzzle, rules, judge);
+  const flash = useBoardFlash(state.phase, state.verdict?.kind);
   const feedback = feedbackFor(state);
 
   // Indices progressifs : 1 = plan (idée clé), 2 = pièce à jouer, 3 = coup.
@@ -107,15 +109,17 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 lg:flex-row lg:items-start">
       <div className="mx-auto w-full shrink-0 lg:mx-0 lg:w-[min(680px,60vw)]" style={{ maxWidth: 'min(100%, calc(100dvh - 120px))' }}>
-        <Board
-          fen={state.fen}
-          orientation={state.playerColor}
-          interactive={state.phase === 'awaitingPlayer'}
-          lastMove={state.lastMove}
-          marks={marks}
-          arrow={arrow}
-          onMove={(from, to, promotion) => playMove(from, to, promotion)}
-        />
+        <div className={flash}>
+          <Board
+            fen={state.fen}
+            orientation={state.playerColor}
+            interactive={state.phase === 'awaitingPlayer'}
+            lastMove={state.lastMove}
+            marks={marks}
+            arrow={arrow}
+            onMove={(from, to, promotion) => playMove(from, to, promotion)}
+          />
+        </div>
         <div className="mt-2">
           <MoveInput fen={state.fen} enabled={state.phase === 'awaitingPlayer'} onMove={(f, t, p) => playMove(f, t, p)} />
         </div>
@@ -134,7 +138,9 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
         <div>
           {header && <p className="mb-1 text-sm font-semibold text-amber-300">{header}</p>}
           <h1 className="text-2xl font-bold text-stone-50">{puzzle.title}</h1>
-          <p className="mt-1 text-sm text-stone-400">{materialSignature(puzzle.fen, state.playerColor)}</p>
+          <p className="mt-1 text-lg text-stone-300" aria-label={materialSymbols(puzzle.fen, state.playerColor).label}>
+            {materialSymbols(puzzle.fen, state.playerColor).text}
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2 text-sm font-semibold">

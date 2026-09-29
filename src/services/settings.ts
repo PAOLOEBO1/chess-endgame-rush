@@ -12,7 +12,13 @@ interface Settings {
   lastStart: number | null;
   /** Couleurs de l'échiquier. */
   boardTheme: BoardTheme;
+  /** Onglet ouvert dans l'accueil Entraînement. */
+  trainingTab: TrainTab;
+  /** Présentation du premier lancement déjà vue. */
+  welcomed: boolean;
 }
+
+export type TrainTab = 'bases' | 'lecons' | 'technique' | 'jugement' | 'entraineur';
 
 export type BoardTheme = 'brown' | 'blue' | 'green' | 'contrast';
 export const BOARD_THEMES: { id: BoardTheme; label: string; light: string; dark: string }[] = [
@@ -28,7 +34,7 @@ export function applyBoardTheme(theme: BoardTheme): void {
   else document.documentElement.setAttribute('data-board', theme);
 }
 
-const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastStart: null, boardTheme: 'brown' };
+const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastStart: null, boardTheme: 'brown', trainingTab: 'bases', welcomed: false };
 
 export function getSettings(): Settings {
   try {

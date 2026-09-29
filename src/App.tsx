@@ -26,8 +26,9 @@ import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
+import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress' } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number };
 
 const embed = readEmbedOptions();
 
@@ -98,6 +99,12 @@ const SERIES_PUZZLES: Puzzle[] = (SERIES?.items ?? []).map((it, i) =>
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>(SERIES ? { name: 'series' } : { name: 'home' });
+  // Présentation au tout premier lancement (aucun profil sur l'appareil, hors intégration et lien de série).
+  const [welcome, setWelcome] = useState(() => !embed.embed && !SERIES && !getSettings().welcomed && playerStore.listPlayers().length === 0);
+  const closeWelcome = useCallback(() => {
+    setWelcome(false);
+    setSetting('welcomed', true);
+  }, []);
   const [seriesResults, setSeriesResults] = useState<(boolean | null)[]>(() => SERIES_PUZZLES.map(() => null));
   // Derniers choix mémorisés (sauf réglages imposés par une intégration dans un site).
   const saved = getSettings();
@@ -402,6 +409,7 @@ export default function App() {
     return shell(
       <ProgressScreen
         store={playerStore}
+        focusStats={screen.stats}
         account={account}
         onPrivacy={() => setScreen({ name: 'privacy' })}
         playerId={playerId}
@@ -586,11 +594,20 @@ export default function App() {
         onRunEnd={onRunEnd}
         onRestart={() => setScreen({ name: 'rush', run: screen.run + 1 })}
         onHome={() => setScreen({ name: 'home' })}
+        onLesson={(id) => setScreen({ name: 'lesson', id })}
+        onFocusFamily={(family) => {
+          setMode('storm');
+          setTheme(family as ThemeChoice);
+          setSub('all');
+          setScreen({ name: 'rush', run: screen.run + 1 });
+        }}
       />,
     );
   }
 
   return shell(
+    <>
+    {welcome && <WelcomeDialog onClose={closeWelcome} />}
     <HomeScreen
       compact={embed.embed}
       mode={mode}
@@ -598,7 +615,7 @@ export default function App() {
       sub={sub}
       counts={counts}
       playerName={playerName}
-      onProgress={() => setScreen({ name: 'progress' })}
+      onProgress={(stats) => setScreen({ name: 'progress', stats })}
       onPrivacy={() => setScreen({ name: 'privacy' })}
       review={playerId && lichess ? { due: reviewDue.length, total: reviewAll.length, spaced } : null}
       onReview={() => startReview(reviewDue.map((i) => i.id))}
@@ -644,6 +661,7 @@ export default function App() {
       onStart={() => setScreen({ name: 'rush', run: Date.now() })}
       onTrain={(index) => setScreen({ name: 'training', index })}
       onLeaderboard={account.enabled ? () => setScreen({ name: 'leaderboard' }) : undefined}
-    />,
+    />
+    </>,
   );
 }

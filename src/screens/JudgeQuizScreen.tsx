@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Board } from '../components/board/Board';
-import { materialSignature } from '../core/material';
+import { materialSymbols } from '../core/material';
 import { buildQuestion, type JudgeQuestion, type Verdict3 } from '../core/quiz/judgeQuiz';
 import type { Puzzle } from '../core/types';
 import { getBest, submitScore } from '../services/highScores';
@@ -167,7 +167,7 @@ export function JudgeQuizScreen({ pool, tablebase, onHome }: Props) {
         <div>
           <h1 className="text-2xl font-bold text-stone-50">⚖️ Gain, nulle ou perte ?</h1>
           <p className="mt-1 text-sm text-stone-400">
-            {question ? `${materialSignature(question.fen, 'w')} · trait aux ${turn}` : ''} — résultat avec le meilleur jeu des deux camps.
+            {question ? `${materialSymbols(question.fen, 'w').text} · trait aux ${turn}` : ''} — résultat avec le meilleur jeu des deux camps.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">

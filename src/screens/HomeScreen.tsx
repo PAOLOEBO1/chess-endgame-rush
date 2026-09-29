@@ -4,13 +4,13 @@ import { CONFIG } from '../core/config';
 import { InstallButton } from '../components/InstallButton';
 import { SOURCE_URL } from './PrivacyScreen';
 import { sideToMove } from '../core/fen';
-import { materialSignature } from '../core/material';
+import { materialSymbols } from '../core/material';
 import type { RushMode } from '../core/rush/rushRules';
 import type { Level, Puzzle } from '../core/types';
 import { useState } from 'react';
 import type { BestScore } from '../services/highScores';
 import { isSoundOn, setSoundOn } from '../services/sound';
-import { applyBoardTheme, BOARD_THEMES, getSettings, setSetting, type BoardTheme } from '../services/settings';
+import { applyBoardTheme, BOARD_THEMES, getSettings, setSetting, type BoardTheme, type TrainTab } from '../services/settings';
 
 export type HomeMode = RushMode | 'training';
 export type ThemeChoice = 'mix' | 'bases' | 'pions' | 'tours' | 'dames' | 'fous' | 'cavaliers' | 'mixte';
@@ -49,7 +49,8 @@ interface Props {
   /** Nombre de finales disponibles par sous-thème (id → n) et par famille. */
   counts: Map<string, number>;
   playerName: string | null;
-  onProgress: () => void;
+  /** Profil et compte (stats = true : statistiques de progression). */
+  onProgress: (stats?: boolean) => void;
   /** Classement public (absent si les comptes en ligne ne sont pas configurés). */
   onLeaderboard?: () => void;
   onPrivacy: () => void;
@@ -103,6 +104,14 @@ function Count({ n }: { n?: number }) {
   return <span className="ml-1 text-xs opacity-60 tabular-nums">{n ?? 0}</span>;
 }
 
+const TRAIN_TABS: { id: TrainTab; label: string }[] = [
+  { id: 'bases', label: '📘 Bases' },
+  { id: 'lecons', label: '🎓 Leçons' },
+  { id: 'technique', label: '🛠️ Technique' },
+  { id: 'jugement', label: '⚖️ Jugement' },
+  { id: 'entraineur', label: '🧑‍🏫 Entraîneur' },
+];
+
 const chip = (active: boolean) =>
   `rounded-full px-3 py-1.5 text-sm font-semibold transition ${active ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-200 hover:bg-stone-700'}`;
 
@@ -113,6 +122,11 @@ export function HomeScreen(p: Props) {
   const rush = p.mode !== 'training';
   const [sound, setSound] = useState(isSoundOn);
   const [board, setBoard] = useState<BoardTheme>(() => getSettings().boardTheme);
+  const [trainTab, setTrainTab] = useState<TrainTab>(() => getSettings().trainingTab);
+  const pickTrainTab = (t: TrainTab) => {
+    setTrainTab(t);
+    setSetting('trainingTab', t);
+  };
   const pickBoard = (t: BoardTheme) => {
     setBoard(t);
     setSetting('boardTheme', t);
@@ -146,12 +160,21 @@ export function HomeScreen(p: Props) {
         )}
         <button
           type="button"
-          onClick={p.onProgress}
+          onClick={() => p.onProgress(true)}
           className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
-          title="Joueurs et progression"
-          aria-label={`Joueurs et progression (profil : ${p.playerName ?? 'invité'})`}
+          title="Ma progression (statistiques, Elo, badges)"
+          aria-label="Ma progression"
         >
-          👤 <span className="hidden max-w-[10rem] truncate align-bottom sm:inline-block">{p.playerName ?? 'Invité'} · </span>📈
+          📈
+        </button>
+        <button
+          type="button"
+          onClick={() => p.onProgress(false)}
+          className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
+          title="Joueurs et compte"
+          aria-label={`Joueurs et compte (profil : ${p.playerName ?? 'invité'})`}
+        >
+          👤 <span className="hidden max-w-[10rem] truncate align-bottom sm:inline-block">{p.playerName ?? 'Invité'}</span>
         </button>
         <button
           type="button"
@@ -359,67 +382,22 @@ export function HomeScreen(p: Props) {
         </section>
       ) : (
         <>
-        <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
-          <h2 className="text-lg font-bold text-stone-50">🛠️ Technique : jouer jusqu’au bout</h2>
-          <p className="text-sm text-stone-400">
-            Une position de partie réelle (7 pièces ou moins), sans chrono, à mener jusqu’au mat — ou à tenir 20 coups quand
-            l’objectif est la nulle. Chaque coup est jugé par la table de finales.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {THEMES.filter((t) => t.id !== 'bases').map((t) => (
-              <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
+        <div role="tablist" aria-label="Entraînement" className="mt-6 flex flex-wrap gap-2 border-b border-stone-800 pb-3">
+          {TRAIN_TABS.map((t) => (
             <button
+              key={t.id}
               type="button"
-              disabled={!p.techniqueCount}
-              onClick={p.onTechnique}
-              className="rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
+              role="tab"
+              aria-selected={trainTab === t.id}
+              onClick={() => pickTrainTab(t.id)}
+              className={chip(trainTab === t.id)}
             >
-              ▶ Position au hasard
+              {t.label}
             </button>
-            <span className="text-sm text-stone-400">
-              {p.techniqueCount === null ? 'Chargement…' : `${p.techniqueCount} positions disponibles`}
-            </span>
-          </div>
-        </section>
-        <section className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-700 p-4">
-          <p className="text-sm text-stone-300">
-            🧑‍🏫 <strong>Entraîneur ?</strong> Compose une série de positions et envoie-la par lien à tes élèves.
-          </p>
-          <button type="button" onClick={p.onCoach} className="rounded-lg bg-stone-700 px-4 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
-            Créer une série
-          </button>
-        </section>
-        <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
-          <h2 className="text-lg font-bold text-stone-50">🎓 Leçons guidées</h2>
-          <p className="text-sm text-stone-400">Les classiques expliqués coup par coup, puis à toi de les jouer.</p>
-          <div className="flex flex-wrap gap-2">
-            {p.lessons.map((l) => (
-              <button key={l.id} type="button" onClick={() => p.onLesson(l.id)} className="rounded-lg bg-stone-700 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
-                {l.title}
-              </button>
-            ))}
-          </div>
-        </section>
-        <section className="mt-6 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
-          <h2 className="text-lg font-bold text-stone-50">⚖️ Gain, nulle ou perte ?</h2>
-          <p className="text-sm text-stone-400">
-            10 positions : annonce le résultat avec le meilleur jeu, sans jouer. La table de finales corrige. Idéal pour savoir
-            quand simplifier vers une finale.
-          </p>
-          <button
-            type="button"
-            disabled={!p.techniqueCount}
-            onClick={p.onJudgeQuiz}
-            className="self-start rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
-          >
-            ▶ Série de 10
-          </button>
-        </section>
+          ))}
+        </div>
+        {trainTab === 'bases' && (
+          <>
         <h2 className="mt-6 text-lg font-bold text-stone-50">
           📘 Bases (positions de référence){' '}
           <span className="text-sm font-semibold text-stone-400">
@@ -452,7 +430,9 @@ export function HomeScreen(p: Props) {
                         {p.basicsDone.has(b.id) && <span title="Déjà réussie">✅ </span>}
                         {b.title}
                       </span>
-                      <span className="text-sm text-stone-400">{materialSignature(b.fen, sideToMove(b.fen))}</span>
+                      <span className="text-lg text-stone-300" aria-label={materialSymbols(b.fen, sideToMove(b.fen)).label}>
+                        {materialSymbols(b.fen, sideToMove(b.fen)).text}
+                      </span>
                       <span className="mt-auto flex flex-wrap gap-2 text-xs font-semibold">
                         <span className={`rounded-full px-2 py-0.5 ${b.objective === 'win' ? 'bg-amber-500 text-stone-900' : 'bg-sky-500 text-stone-900'}`}>
                           {b.objective === 'win' ? 'Gagner' : 'Tenir la nulle'}
@@ -467,6 +447,77 @@ export function HomeScreen(p: Props) {
             </details>
           );
         })}
+          </>
+        )}
+        {trainTab === 'lecons' && (
+          <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
+          <h2 className="text-lg font-bold text-stone-50">🎓 Leçons guidées</h2>
+          <p className="text-sm text-stone-400">Les classiques expliqués coup par coup, puis à toi de les jouer.</p>
+          <div className="flex flex-wrap gap-2">
+            {p.lessons.map((l) => (
+              <button key={l.id} type="button" onClick={() => p.onLesson(l.id)} className="rounded-lg bg-stone-700 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
+                {l.title}
+              </button>
+            ))}
+          </div>
+        </section>
+        )}
+        {trainTab === 'technique' && (
+        <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
+          <h2 className="text-lg font-bold text-stone-50">🛠️ Technique : jouer jusqu’au bout</h2>
+          <p className="text-sm text-stone-400">
+            Une position de partie réelle (7 pièces ou moins), sans chrono, à mener jusqu’au mat — ou à tenir 20 coups quand
+            l’objectif est la nulle. Chaque coup est jugé par la table de finales.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {THEMES.filter((t) => t.id !== 'bases').map((t) => (
+              <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={!p.techniqueCount}
+              onClick={p.onTechnique}
+              className="rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
+            >
+              ▶ Position au hasard
+            </button>
+            <span className="text-sm text-stone-400">
+              {p.techniqueCount === null ? 'Chargement…' : `${p.techniqueCount} positions disponibles`}
+            </span>
+          </div>
+        </section>
+        )}
+        {trainTab === 'jugement' && (
+        <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
+          <h2 className="text-lg font-bold text-stone-50">⚖️ Gain, nulle ou perte ?</h2>
+          <p className="text-sm text-stone-400">
+            10 positions : annonce le résultat avec le meilleur jeu, sans jouer. La table de finales corrige. Idéal pour savoir
+            quand simplifier vers une finale.
+          </p>
+          <button
+            type="button"
+            disabled={!p.techniqueCount}
+            onClick={p.onJudgeQuiz}
+            className="self-start rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
+          >
+            ▶ Série de 10
+          </button>
+        </section>
+        )}
+        {trainTab === 'entraineur' && (
+        <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-700 p-4">
+          <p className="text-sm text-stone-300">
+            🧑‍🏫 <strong>Entraîneur ?</strong> Compose une série de positions et envoie-la par lien à tes élèves.
+          </p>
+          <button type="button" onClick={p.onCoach} className="rounded-lg bg-stone-700 px-4 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
+            Créer une série
+          </button>
+        </section>
+        )}
         </>
       )}
 

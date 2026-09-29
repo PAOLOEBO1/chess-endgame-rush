@@ -1,7 +1,7 @@
 // Profils joueurs et progression : évolution des scores, réussite par
 // sous-thème, points faibles (avec accès direct à l'entraînement ciblé).
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccountPanel } from '../components/AccountPanel';
 import { ScoreDashboard } from '../components/ScoreDashboard';
 import { badges, dayStreak } from '../core/motivation';
@@ -22,6 +22,8 @@ interface Props {
   onPlayerChange: (id: string | null) => void;
   onTrain: (family: string, subcategory: string, mode?: 'storm' | 'streak') => void;
   onHome: () => void;
+  /** Ouvrir directement sur les statistiques (sinon : profil et compte en haut). */
+  focusStats?: boolean;
 }
 
 const PERIODS = [
@@ -40,7 +42,10 @@ const FAMILIES: Family[] = ['pions', 'tours', 'dames', 'fous', 'cavaliers', 'mix
 const chip = (active: boolean) =>
   `rounded-full px-3 py-1 text-sm font-semibold transition ${active ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-200 hover:bg-stone-700'}`;
 
-export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerChange, onTrain, onHome }: Props) {
+export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerChange, onTrain, onHome, focusStats }: Props) {
+  useEffect(() => {
+    if (focusStats) document.getElementById('progres')?.scrollIntoView({ block: 'start' });
+  }, [focusStats]);
   const [version, setVersion] = useState(0); // force la relecture après une modification
   const [newName, setNewName] = useState('');
   const [mode, setMode] = useState('');
@@ -237,6 +242,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
         </button>
       </section>
 
+      <div id="progres" />
       {!current ? (
         <p className="text-stone-400">Créez ou choisissez un joueur pour archiver vos parties et suivre vos progrès.</p>
       ) : (

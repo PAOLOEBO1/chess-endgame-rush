@@ -44,3 +44,18 @@ html[data-board='contrast'] {
 body {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+
+/* Retour visuel sur l'échiquier (useBoardFlash). */
+@keyframes board-flash-good {
+  from { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.9); }
+  to { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+@keyframes board-flash-bad {
+  from { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.95); }
+  to { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.board-flash-good { animation: board-flash-good 0.6s ease-out; border-radius: 4px; }
+.board-flash-bad { animation: board-flash-bad 0.6s ease-out; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .board-flash-good, .board-flash-bad { animation: none; }
+}

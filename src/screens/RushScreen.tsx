@@ -7,7 +7,9 @@ import { CONFIG } from '../core/config';
 import { countPieces } from '../core/fen';
 import { remainingMs, rushReducer, startRush, targetRating, type RushMode, type RushState } from '../core/rush/rushRules';
 import { pickNext } from '../core/rush/selector';
-import type { Puzzle } from '../core/types';
+import type { Family, Puzzle } from '../core/types';
+import { endOfRunAdvice, type Advice } from '../core/advice';
+import { FAMILY_LABEL } from '../core/material';
 import { notifyParent } from '../embed';
 import { submitScore, type BestScore } from '../services/highScores';
 import type { MoveJudge } from '../services/moveJudge';
@@ -29,6 +31,9 @@ interface Props {
   onRunEnd?: (run: { mode: RushMode; theme: string; level: number; score: number; errors: number; bestCombo: number; highest?: number; played?: number; moves?: number; durationMs?: number }) => void;
   onRestart: () => void;
   onHome: () => void;
+  /** Conseil de fin de partie : ouvrir une leçon, ou relancer un Storm sur une famille. */
+  onLesson?: (id: string) => void;
+  onFocusFamily?: (family: Family) => void;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -48,7 +53,7 @@ function preload<T>(promise: Promise<T>): Promise<T> {
   return promise;
 }
 
-export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, recentlySeen, onAttempt, onRunEnd, onReview, onRestart, onHome }: Props) {
+export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, recentlySeen, onAttempt, onRunEnd, onReview, onRestart, onHome, onLesson, onFocusFamily }: Props) {
   const [rush, setRush] = useState<RushState>(() => startRush(mode, startRating));
   const [current, setCurrent] = useState<Puzzle | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -297,7 +302,18 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           {rush.errors > 0 && ` · ${rush.errors} erreur${rush.errors > 1 ? 's' : ''}`}
         </p>
         {over ? (
-          <ResultPanel rush={rush} result={result} problem={problem} onRestart={onRestart} onHome={onHome} onReview={onReview} />
+          <ResultPanel
+            rush={rush}
+            result={result}
+            problem={problem}
+            onRestart={onRestart}
+            onHome={onHome}
+            onReview={onReview}
+            advice={endOfRunAdvice(rush.history.filter((h) => !h.success).map((h) => pool.find((p) => p.id === h.puzzleId)?.family))}
+            themeIsFamily={theme}
+            onLesson={onLesson}
+            onFocusFamily={onFocusFamily}
+          />
         ) : (
           <button type="button" onClick={onHome} className="self-start text-sm text-stone-400 hover:text-stone-100">
             Abandonner
@@ -315,7 +331,15 @@ function ResultPanel({
   onRestart,
   onHome,
   onReview,
+  advice,
+  themeIsFamily,
+  onLesson,
+  onFocusFamily,
 }: {
+  advice: Advice | null;
+  themeIsFamily: string;
+  onLesson?: (id: string) => void;
+  onFocusFamily?: (family: Family) => void;
   rush: RushState;
   result: { isRecord: boolean; previous: BestScore | null } | null;
   problem: string | null;
@@ -359,6 +383,25 @@ function ResultPanel({
           </li>
         ))}
       </ul>
+      {advice && (
+        <div className="flex flex-col gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-stone-200" role="note">
+          <p>
+            🎯 <strong>{advice.errors} erreurs en {FAMILY_LABEL[advice.family].toLowerCase()}</strong> : {advice.text}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {advice.lessonId && onLesson && (
+              <button type="button" onClick={() => onLesson(advice.lessonId!)} className="rounded-lg bg-sky-500 px-3 py-1.5 font-bold text-stone-900 hover:bg-sky-400">
+                🎓 Voir la leçon
+              </button>
+            )}
+            {onFocusFamily && themeIsFamily !== advice.family && (
+              <button type="button" onClick={() => onFocusFamily(advice.family)} className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600">
+                ⚡ Storm sur ce thème
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {onReview && failedIds.length > 0 && (
         <button
           type="button"
