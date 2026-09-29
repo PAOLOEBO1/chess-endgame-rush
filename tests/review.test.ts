@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dueNow, MASTERED_AFTER, reviewItems } from '../src/core/review';
+import { dueNow, maintenanceDue, MASTERED_AFTER, reviewItems } from '../src/core/review';
 
 const D = 86_400_000;
 const T0 = 1_790_000_000_000;
@@ -32,4 +32,17 @@ test('révision : un échec en position jouée jusqu’au bout est rejoué jusqu
   const items = reviewItems([{ p: 'z', t: T0, ok: false, m: 'training' }, { p: 'w', t: T0, ok: false, m: 'storm' }]);
   assert.equal(items.find((i) => i.id === 'z')!.full, true);
   assert.equal(items.find((i) => i.id === 'w')!.full, false);
+});
+
+test('entretien des Bases : une position réussie revient après 7, 21, 60 puis 120 jours', () => {
+  const ids = ['b1', 'b2', 'b3'];
+  const h = [A('b1', 0, true), A('b2', 0, true), A('b2', 8, true), A('b3', 0, false), A('b3', 1, true), A('autre', 0, true)];
+  // b1 : 1 réussite (jour 0) → due jour 7 ; b2 : 2 réussites (dernière jour 8) → due jour 29 ;
+  // b3 : ratée puis réussie une fois → encore en révision des erreurs, pas en entretien.
+  assert.deepEqual(maintenanceDue(h, ids, T0 + 6 * D).map((i) => i.id), []);
+  assert.deepEqual(maintenanceDue(h, ids, T0 + 7 * D).map((i) => i.id), ['b1']);
+  assert.deepEqual(maintenanceDue(h, ids, T0 + 30 * D).map((i) => i.id), ['b1', 'b2']);
+  const b3done = [...h, ...[2, 5, 12, 26].map((d) => A('b3', d, true))]; // acquise en révision
+  assert.ok(maintenanceDue(b3done, ids, T0 + 26 * D + 120 * D).some((i) => i.id === 'b3'));
+  assert.ok(!maintenanceDue(b3done, ids, T0 + 26 * D + 119 * D).some((i) => i.id === 'b3'));
 });

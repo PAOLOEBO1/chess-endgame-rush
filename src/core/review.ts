@@ -59,3 +59,42 @@ export function reviewItems(attempts: AttemptLite[]): ReviewItem[] {
 }
 
 export const dueNow = (items: ReviewItem[], now: number) => items.filter((i) => i.due <= now);
+
+// ------------------------------------------------ Entretien des acquis (Bases)
+// Une position « Bases » réussie n'est pas sue pour toujours : elle revient
+// après 7 jours, puis 21, 60 et 120 jours à chaque nouvelle réussite. Une
+// position en cours de révision des erreurs (ratée, pas encore acquise) n'est
+// pas proposée ici : elle est déjà dans la révision des erreurs.
+
+export const MAINTENANCE_DAYS = [7, 21, 60, 120];
+
+export interface MaintenanceItem {
+  id: string;
+  /** Réussites d'affilée depuis le dernier échec. */
+  successes: number;
+  due: number;
+}
+
+/** Positions déjà réussies à rejouer (parmi `ids`), de la plus en retard à la moins en retard. */
+export function maintenanceDue(attempts: AttemptLite[], ids: readonly string[], now: number): MaintenanceItem[] {
+  const wanted = new Set(ids);
+  const byId = new Map<string, AttemptLite[]>();
+  for (const a of attempts) {
+    if (!wanted.has(a.p)) continue;
+    const list = byId.get(a.p);
+    if (list) list.push(a);
+    else byId.set(a.p, [a]);
+  }
+  const inReview = new Set(reviewItems(attempts).map((i) => i.id));
+  const out: MaintenanceItem[] = [];
+  for (const [id, list] of byId) {
+    if (inReview.has(id)) continue;
+    list.sort((x, y) => x.t - y.t);
+    const lastFail = list.map((a) => a.ok).lastIndexOf(false);
+    const successes = list.length - 1 - lastFail;
+    if (successes < 1) continue;
+    const due = list[list.length - 1].t + MAINTENANCE_DAYS[Math.min(successes, MAINTENANCE_DAYS.length) - 1] * DAY;
+    if (due <= now) out.push({ id, successes, due });
+  }
+  return out.sort((a, b) => a.due - b.due);
+}

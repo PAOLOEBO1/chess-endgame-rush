@@ -1,5 +1,8 @@
 // Réglages de l'appli, enregistrés dans le navigateur.
 
+import type { ExamRecord } from '../core/exam';
+import type { SeriesItem } from '../core/series';
+
 const KEY = 'endgameRush:v1:settings';
 
 interface Settings {
@@ -16,6 +19,17 @@ interface Settings {
   trainingTab: TrainTab;
   /** Présentation du premier lancement déjà vue. */
   welcomed: boolean;
+  /** Tests de maîtrise des Bases, par profil (id ou « invite ») puis par thème. */
+  exams: Record<string, Record<string, ExamRecord>>;
+  /** Séries d'entraîneur enregistrées sur cet appareil (bibliothèque). */
+  seriesLibrary: SavedSeries[];
+}
+
+export interface SavedSeries {
+  id: string;
+  name: string;
+  items: SeriesItem[];
+  savedAt: number;
 }
 
 export type TrainTab = 'bases' | 'lecons' | 'technique' | 'jugement' | 'entraineur';
@@ -34,7 +48,7 @@ export function applyBoardTheme(theme: BoardTheme): void {
   else document.documentElement.setAttribute('data-board', theme);
 }
 
-const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastStart: null, boardTheme: 'brown', trainingTab: 'bases', welcomed: false };
+const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastStart: null, boardTheme: 'brown', trainingTab: 'bases', welcomed: false, exams: {}, seriesLibrary: [] };
 
 export function getSettings(): Settings {
   try {

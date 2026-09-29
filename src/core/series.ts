@@ -66,3 +66,38 @@ export function resultText(name: string, results: (boolean | null)[]): string {
   const marks = results.map((r, i) => `${i + 1}${r === true ? '✅' : r === false ? '❌' : '–'}`).join(' ');
   return `Série « ${name} » : ${ok}/${results.length} réussies — ${marks} (Chess Endgame Rush)`;
 }
+
+export interface BulkLine {
+  line: number;
+  fen: string;
+  objective: 'win' | 'draw';
+  title?: string;
+}
+
+/**
+ * Ajout en masse : une position par ligne, « FEN ; titre ; nulle » (titre et
+ * objectif facultatifs, « ; » ou « | » comme séparateur, objectif « gain » par
+ * défaut). Renvoie les positions lisibles et les numéros des lignes invalides.
+ */
+export function parseBulk(text: string): { items: BulkLine[]; invalid: number[] } {
+  const items: BulkLine[] = [];
+  const invalid: number[] = [];
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const parts = raw.split(/[;|]/).map((x) => x.trim());
+    if (!parts[0]) return; // ligne vide
+    const fen = parts[0].replace(/\s+/g, ' ');
+    if (!isValidFen(fen)) {
+      invalid.push(i + 1);
+      return;
+    }
+    let objective: 'win' | 'draw' = 'win';
+    let title: string | undefined;
+    for (const x of parts.slice(1)) {
+      if (/^(nulle|nul|draw|=)$/i.test(x)) objective = 'draw';
+      else if (/^(gain|gagner|win|\+)$/i.test(x)) objective = 'win';
+      else if (x) title = clean(x, 60);
+    }
+    items.push({ line: i + 1, fen, objective, ...(title ? { title } : {}) });
+  });
+  return { items, invalid };
+}

@@ -33,9 +33,11 @@ interface Props {
   header?: string;
   /** Rejouer la position depuis l'autre camp (défendre une position gagnante). */
   onOtherSide?: () => void;
+  /** Test de maîtrise : ni indice, ni retour en arrière, ni « Recommencer ». */
+  exam?: boolean;
 }
 
-export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header, onOtherSide }: Props) {
+export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header, onOtherSide, exam = false }: Props) {
   const { state, timings, playMove, reset, takeBack } = usePuzzlePlayer(puzzle, rules, judge);
   const flash = useBoardFlash(state.phase, state.verdict?.kind);
   const feedback = feedbackFor(state);
@@ -167,6 +169,11 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           )}
         </div>
 
+        {exam ? (
+          <p className="rounded-xl bg-stone-800/60 px-4 py-3 text-sm text-stone-300">
+            Test de maîtrise : pas d’indice ni de retour en arrière. Seule cette tentative compte.
+          </p>
+        ) : (
         <div className="flex flex-col gap-2 rounded-xl bg-stone-800/60 px-4 py-3 text-sm text-stone-300">
           {planShown ? (
             <p>💡 {puzzle.concept}</p>
@@ -205,6 +212,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
             <p className="text-xs text-stone-400">Avec un indice, la position ne compte pas comme réussie : refais-la sans aide pour la valider ✅.</p>
           )}
         </div>
+        )}
 
         {moveList.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm text-stone-300">
@@ -216,7 +224,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           </div>
         )}
 
-        {onOtherSide && (
+        {onOtherSide && !exam && (
           <button
             type="button"
             onClick={onOtherSide}
@@ -227,7 +235,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           </button>
         )}
         <div className="flex flex-wrap gap-3">
-          {state.phase === 'failed' && state.endReason === 'bad-move' && (
+          {!exam && state.phase === 'failed' && state.endReason === 'bad-move' && (
             <button
               type="button"
               onClick={takeBack}
@@ -237,15 +245,17 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
               ↶ Réessayer ce coup
             </button>
           )}
+          {!exam && (
           <button type="button" onClick={() => { reset(); setPlanShown(false); }} className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">
             ↺ Recommencer
           </button>
+          )}
           <button
             type="button"
             onClick={onNext}
             className={`rounded-lg px-4 py-2 font-semibold ${finished ? 'bg-amber-500 text-stone-900 hover:bg-amber-400' : 'bg-stone-700 text-stone-100 hover:bg-stone-600'}`}
           >
-            Suivant →
+            {exam && !finished ? 'Passer (comptée ratée) →' : 'Suivant →'}
           </button>
         </div>
 

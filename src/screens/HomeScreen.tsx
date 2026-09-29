@@ -2,10 +2,12 @@ import { SUBCATEGORIES } from '../core/categories';
 import { BASICS_GROUPS } from '../data/puzzlesMock';
 import { CONFIG } from '../core/config';
 import { InstallButton } from '../components/InstallButton';
+import { Icon, type IconName } from '../components/Icon';
 import { SOURCE_URL } from './PrivacyScreen';
 import { sideToMove } from '../core/fen';
 import { materialSymbols } from '../core/material';
 import type { RushMode } from '../core/rush/rushRules';
+import type { ExamRecord } from '../core/exam';
 import type { Level, Puzzle } from '../core/types';
 import { useState } from 'react';
 import type { BestScore } from '../services/highScores';
@@ -15,26 +17,26 @@ import { applyBoardTheme, BOARD_THEMES, getSettings, setSetting, type BoardTheme
 export type HomeMode = RushMode | 'training';
 export type ThemeChoice = 'mix' | 'bases' | 'pions' | 'tours' | 'dames' | 'fous' | 'cavaliers' | 'mixte';
 
-export const THEMES: { id: ThemeChoice; label: string }[] = [
-  { id: 'mix', label: '🎲 Mix' },
+export const THEMES: { id: ThemeChoice; label: string; icon?: IconName }[] = [
+  { id: 'mix', label: 'Mix', icon: 'dice' },
   { id: 'pions', label: '♟ Pions' },
   { id: 'tours', label: '♜ Tours' },
   { id: 'dames', label: '♛ Dames' },
   { id: 'fous', label: '♝ Fous' },
   { id: 'cavaliers', label: '♞ Cavaliers' },
   { id: 'mixte', label: '⚖ Mixtes' },
-  { id: 'bases', label: '📘 Bases' },
+  { id: 'bases', label: 'Bases', icon: 'book' },
 ];
 
-const MODES: { id: HomeMode; icon: string; title: string; text: string }[] = [
+const MODES: { id: HomeMode; icon: IconName; title: string; text: string }[] = [
   {
     id: 'storm',
-    icon: '⚡',
+    icon: 'bolt',
     title: 'Storm',
     text: `${CONFIG.modes.storm.durationMs / 60000} min · +${CONFIG.modes.storm.bonusMs / 1000} s par réussite · −${CONFIG.modes.storm.penaltyMs / 1000} s par erreur`,
   },
-  { id: 'streak', icon: '🔥', title: 'Streak', text: 'Difficulté croissante · la série s’arrête à la 1re erreur' },
-  { id: 'training', icon: '📚', title: 'Entraînement', text: 'Technique jusqu’au bout et positions « Bases », sans chrono' },
+  { id: 'streak', icon: 'flame', title: 'Streak', text: 'Difficulté croissante · la série s’arrête à la 1re erreur' },
+  { id: 'training', icon: 'book', title: 'Entraînement', text: 'Technique jusqu’au bout et positions « Bases », sans chrono' },
 ];
 
 const LEVEL_LABEL: Record<Level, string> = { debutant: 'Débutant', intermediaire: 'Intermédiaire', avance: 'Avancé', master: 'Master' };
@@ -69,6 +71,12 @@ interface Props {
   basics: Puzzle[];
   /** Identifiants des positions « Bases » déjà réussies. */
   basicsDone: Set<string>;
+  /** Tests de maîtrise par thème (groupe → bilan). */
+  exams: Record<string, ExamRecord>;
+  onExam: (group: string) => void;
+  /** Entretien des acquis : nombre de Bases réussies à rejouer aujourd'hui. */
+  maintenance: number;
+  onMaintenance: () => void;
   onMode: (m: HomeMode) => void;
   onTheme: (t: ThemeChoice) => void;
   onStartRating: (r: number | null) => void;
@@ -104,12 +112,12 @@ function Count({ n }: { n?: number }) {
   return <span className="ml-1 text-xs opacity-60 tabular-nums">{n ?? 0}</span>;
 }
 
-const TRAIN_TABS: { id: TrainTab; label: string }[] = [
-  { id: 'bases', label: '📘 Bases' },
-  { id: 'lecons', label: '🎓 Leçons' },
-  { id: 'technique', label: '🛠️ Technique' },
-  { id: 'jugement', label: '⚖️ Jugement' },
-  { id: 'entraineur', label: '🧑‍🏫 Entraîneur' },
+const TRAIN_TABS: { id: TrainTab; label: string; icon: IconName }[] = [
+  { id: 'bases', label: 'Bases', icon: 'book' },
+  { id: 'lecons', label: 'Leçons', icon: 'cap' },
+  { id: 'technique', label: 'Technique', icon: 'tool' },
+  { id: 'jugement', label: 'Jugement', icon: 'scale' },
+  { id: 'entraineur', label: 'Entraîneur', icon: 'board' },
 ];
 
 const chip = (active: boolean) =>
@@ -155,7 +163,7 @@ export function HomeScreen(p: Props) {
             title="Classement des joueurs"
             aria-label="Classement des joueurs"
           >
-            🏆
+            <Icon name="trophy" className="h-5 w-5" />
           </button>
         )}
         <button
@@ -165,7 +173,7 @@ export function HomeScreen(p: Props) {
           title="Ma progression (statistiques, Elo, badges)"
           aria-label="Ma progression"
         >
-          📈
+          <Icon name="chart" className="h-5 w-5" />
         </button>
         <button
           type="button"
@@ -174,7 +182,7 @@ export function HomeScreen(p: Props) {
           title="Joueurs et compte"
           aria-label={`Joueurs et compte (profil : ${p.playerName ?? 'invité'})`}
         >
-          👤 <span className="hidden max-w-[10rem] truncate align-bottom sm:inline-block">{p.playerName ?? 'Invité'}</span>
+          <Icon name="user" className="h-5 w-5" /> <span className="hidden max-w-[10rem] truncate align-bottom sm:inline-block">{p.playerName ?? 'Invité'}</span>
         </button>
         <button
           type="button"
@@ -186,7 +194,7 @@ export function HomeScreen(p: Props) {
           aria-label={sound ? 'Couper le son' : 'Activer le son'}
           title={sound ? 'Couper le son' : 'Activer le son'}
         >
-          {sound ? '🔊' : '🔇'}
+          <Icon name={sound ? 'volume' : 'mute'} className="h-5 w-5" />
         </button>
         </div>
       </header>
@@ -194,7 +202,7 @@ export function HomeScreen(p: Props) {
       {!p.compact && p.weakness && (
         <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-4">
           <p className="text-sm text-stone-200">
-            🎯 <strong>Ton point faible :</strong> {p.weakness.label.toLowerCase()} (Elo {p.weakness.elo}). Quelques séries ciblées feront
+            <Icon name="target" className="h-4 w-4 text-sky-300" /> <strong>Ton point faible :</strong> {p.weakness.label.toLowerCase()} (Elo {p.weakness.elo}). Quelques séries ciblées feront
             monter ta moyenne.
           </p>
           <button
@@ -202,7 +210,7 @@ export function HomeScreen(p: Props) {
             onClick={() => p.onWeakness(p.weakness!.family)}
             className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-bold text-stone-900 hover:bg-sky-400"
           >
-            ⚡ Storm sur ce thème
+            <Icon name="bolt" className="h-4 w-4" /> Storm sur ce thème
           </button>
         </section>
       )}
@@ -214,7 +222,7 @@ export function HomeScreen(p: Props) {
               className={`rounded-full px-3 py-1.5 text-sm font-bold ${p.streak.current > 0 ? 'bg-orange-500/20 text-orange-300' : 'bg-stone-800 text-stone-400'}`}
               title={`Meilleure série : ${p.streak.best} jour(s)`}
             >
-              🔥 {p.streak.current} jour{p.streak.current > 1 ? 's' : ''} d’affilée
+              <Icon name="flame" className="h-4 w-4" /> {p.streak.current} jour{p.streak.current > 1 ? 's' : ''} d’affilée
               {!p.streak.playedToday && p.streak.current > 0 && ' · joue aujourd’hui pour la prolonger'}
             </span>
           )}
@@ -225,7 +233,7 @@ export function HomeScreen(p: Props) {
               className="rounded-full bg-stone-800 px-3 py-1.5 text-sm font-semibold text-stone-100 hover:bg-stone-700"
               title={p.daily.title}
             >
-              📌 Puzzle du jour (Elo {p.daily.rating}){' '}
+              <Icon name="pin" className="h-4 w-4" /> Puzzle du jour (Elo {p.daily.rating}){' '}
               {p.daily.result === null ? '→ à jouer' : p.daily.result ? '✅ réussi' : '❌ raté (à revoir)'}
             </button>
           )}
@@ -236,7 +244,7 @@ export function HomeScreen(p: Props) {
               className="rounded-full bg-sky-500/20 px-3 py-1.5 text-sm font-semibold text-sky-100 hover:bg-sky-500/30"
               title="Les mêmes 10 finales pour tout le monde, du lundi au dimanche ; seule la première tentative compte"
             >
-              🏁 Défi de la semaine :{' '}
+              <Icon name="flag" className="h-4 w-4" /> Défi de la semaine :{' '}
               {p.challenge.played === 0
                 ? '10 finales → à jouer'
                 : p.challenge.played < p.challenge.total
@@ -251,7 +259,7 @@ export function HomeScreen(p: Props) {
         <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
           <div>
             <div className="font-bold text-stone-50">
-              🔁 Révision des erreurs :{' '}
+              <Icon name="refresh" className="h-4 w-4 text-amber-300" /> Révision des erreurs :{' '}
               {p.review.spaced
                 ? `${p.review.due} à revoir aujourd’hui`
                 : `${p.review.total} erreur${p.review.total > 1 ? 's' : ''} à retravailler`}
@@ -272,7 +280,7 @@ export function HomeScreen(p: Props) {
             onClick={p.onReview}
             className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400 disabled:opacity-40"
           >
-            {p.review.due === 0 ? 'Rien à revoir aujourd’hui' : '▶ Réviser'}
+            {p.review.due === 0 ? 'Rien à revoir aujourd’hui' : <><Icon name="play" className="h-4 w-4" /> Réviser</>}
           </button>
         </section>
       )}
@@ -285,8 +293,8 @@ export function HomeScreen(p: Props) {
             onClick={() => p.onMode(m.id)}
             className={`rounded-xl p-4 text-left transition ${p.mode === m.id ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-100 hover:bg-stone-700'}`}
           >
-            <div className="text-2xl font-black">
-              {m.icon} {m.title}
+            <div className="flex items-center gap-2 text-2xl font-black">
+              <Icon name={m.icon} className="h-6 w-6" /> {m.title}
             </div>
             <div className={`mt-1 text-sm ${p.mode === m.id ? 'text-stone-800' : 'text-stone-400'}`}>{m.text}</div>
           </button>
@@ -300,6 +308,7 @@ export function HomeScreen(p: Props) {
             <div className="flex flex-wrap gap-2">
               {THEMES.map((t) => (
                 <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
+                  {t.icon && <Icon name={t.icon} className="mr-1 h-4 w-4" />}
                   {t.label}
                 </button>
               ))}
@@ -359,7 +368,7 @@ export function HomeScreen(p: Props) {
                   onClick={() => p.onStartRating(p.startRating === myStart(p.myLevel!) ? null : myStart(p.myLevel!))}
                   title="Départ un peu sous votre Elo personnel pour ce thème"
                 >
-                  🎯 Mon niveau ({myStart(p.myLevel)})
+                  <Icon name="target" className="h-4 w-4" /> Mon niveau ({myStart(p.myLevel)})
                 </button>
               )}
             </div>
@@ -372,7 +381,7 @@ export function HomeScreen(p: Props) {
               onClick={p.onStart}
               className="rounded-xl bg-amber-500 px-8 py-4 text-xl font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
             >
-              ▶ Jouer
+              <Icon name="play" className="h-5 w-5" /> Jouer
             </button>
             <span className="text-sm text-stone-400">
               {p.loadError ?? (p.poolSize === null ? 'Chargement des finales…' : `${p.poolSize} finales disponibles`)}
@@ -392,6 +401,7 @@ export function HomeScreen(p: Props) {
               onClick={() => pickTrainTab(t.id)}
               className={chip(trainTab === t.id)}
             >
+              <Icon name={t.icon} className="mr-1 h-4 w-4" />
               {t.label}
             </button>
           ))}
@@ -399,25 +409,55 @@ export function HomeScreen(p: Props) {
         {trainTab === 'bases' && (
           <>
         <h2 className="mt-6 text-lg font-bold text-stone-50">
-          📘 Bases (positions de référence){' '}
+          <Icon name="book" className="h-5 w-5 text-amber-300" /> Bases (positions de référence){' '}
           <span className="text-sm font-semibold text-stone-400">
             · {p.basics.filter((b) => p.basicsDone.has(b.id)).length}/{p.basics.length} réussies
           </span>
         </h2>
         <p className="mt-1 text-sm text-stone-400">
           Les classiques à connaître, thème par thème et du plus simple au plus difficile, à jouer jusqu’au bout contre la table de
-          finales. « Suivant » enchaîne dans cet ordre.
+          finales. « Suivant » enchaîne dans cet ordre. Quand un thème te semble acquis, passe son test : tout réussir du premier
+          coup, sans indice, le valide.
         </p>
+        {p.maintenance > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
+            <p className="text-sm text-stone-200">
+              <Icon name="refresh" className="h-4 w-4 text-emerald-300" /> <strong>Entretien des acquis :</strong> {p.maintenance} position{p.maintenance > 1 ? 's' : ''} réussie
+              {p.maintenance > 1 ? 's' : ''} il y a un moment, à rejouer pour ne pas l’oublier (après 7, 21, 60 puis 120 jours).
+            </p>
+            <button type="button" onClick={p.onMaintenance} className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-stone-900 hover:bg-emerald-400">
+              <Icon name="play" className="h-4 w-4" /> Rejouer
+            </button>
+          </div>
+        )}
         {BASICS_GROUPS.map((g, gi) => {
           const items = g.ids.map((id) => p.basics.find((b) => b.id === id)).filter((b): b is Puzzle => !!b);
           const done = items.filter((b) => p.basicsDone.has(b.id)).length;
+          const exam = p.exams[g.id];
           // Ouvert par défaut : le premier thème pas encore terminé.
           const firstOpen = BASICS_GROUPS.findIndex((x) => x.ids.some((id) => !p.basicsDone.has(id)));
           return (
             <details key={g.id} open={gi === (firstOpen < 0 ? 0 : firstOpen)} className="mt-3 rounded-xl bg-stone-800/40 p-3">
               <summary className="cursor-pointer select-none font-semibold text-stone-100">
                 {g.label} <span className="text-sm text-stone-400">· {done}/{items.length}{done === items.length ? ' ✅' : ''}</span>
+                {exam?.passedAt ? (
+                  <span className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-300" title={`Test réussi le ${new Date(exam.passedAt).toLocaleDateString('fr-FR')}`}>
+                    <Icon name="medal" className="h-3.5 w-3.5" /> maîtrisé
+                  </span>
+                ) : exam ? (
+                  <span className="ml-2 text-xs text-stone-400">· test : {exam.best}/{exam.total}</span>
+                ) : null}
               </summary>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => p.onExam(g.id)}
+                  className="rounded-lg border border-amber-500/60 px-3 py-1.5 text-sm font-semibold text-amber-200 hover:bg-amber-500/10"
+                  title="Toutes les positions du thème d'affilée, sans indice ; seule la 1re tentative compte"
+                >
+                  <Icon name="cap" className="h-4 w-4" /> {exam?.passedAt ? 'Repasser le test' : 'Passer le test'} ({items.length} positions)
+                </button>
+              </div>
               <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {items.map((b) => (
                   <li key={b.id}>
@@ -451,7 +491,7 @@ export function HomeScreen(p: Props) {
         )}
         {trainTab === 'lecons' && (
           <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
-          <h2 className="text-lg font-bold text-stone-50">🎓 Leçons guidées</h2>
+          <h2 className="text-lg font-bold text-stone-50"><Icon name="cap" className="h-5 w-5 text-amber-300" /> Leçons guidées</h2>
           <p className="text-sm text-stone-400">Les classiques expliqués coup par coup, puis à toi de les jouer.</p>
           <div className="flex flex-wrap gap-2">
             {p.lessons.map((l) => (
@@ -464,7 +504,7 @@ export function HomeScreen(p: Props) {
         )}
         {trainTab === 'technique' && (
         <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
-          <h2 className="text-lg font-bold text-stone-50">🛠️ Technique : jouer jusqu’au bout</h2>
+          <h2 className="text-lg font-bold text-stone-50"><Icon name="tool" className="h-5 w-5 text-amber-300" /> Technique : jouer jusqu’au bout</h2>
           <p className="text-sm text-stone-400">
             Une position de partie réelle (7 pièces ou moins), sans chrono, à mener jusqu’au mat — ou à tenir 20 coups quand
             l’objectif est la nulle. Chaque coup est jugé par la table de finales.
@@ -472,6 +512,7 @@ export function HomeScreen(p: Props) {
           <div className="flex flex-wrap gap-2">
             {THEMES.filter((t) => t.id !== 'bases').map((t) => (
               <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
+                {t.icon && <Icon name={t.icon} className="mr-1 h-4 w-4" />}
                 {t.label}
               </button>
             ))}
@@ -483,7 +524,7 @@ export function HomeScreen(p: Props) {
               onClick={p.onTechnique}
               className="rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
             >
-              ▶ Position au hasard
+              <Icon name="play" className="h-4 w-4" /> Position au hasard
             </button>
             <span className="text-sm text-stone-400">
               {p.techniqueCount === null ? 'Chargement…' : `${p.techniqueCount} positions disponibles`}
@@ -493,7 +534,7 @@ export function HomeScreen(p: Props) {
         )}
         {trainTab === 'jugement' && (
         <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
-          <h2 className="text-lg font-bold text-stone-50">⚖️ Gain, nulle ou perte ?</h2>
+          <h2 className="text-lg font-bold text-stone-50"><Icon name="scale" className="h-5 w-5 text-amber-300" /> Gain, nulle ou perte ?</h2>
           <p className="text-sm text-stone-400">
             10 positions : annonce le résultat avec le meilleur jeu, sans jouer. La table de finales corrige. Idéal pour savoir
             quand simplifier vers une finale.
@@ -504,14 +545,14 @@ export function HomeScreen(p: Props) {
             onClick={p.onJudgeQuiz}
             className="self-start rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
           >
-            ▶ Série de 10
+            <Icon name="play" className="h-4 w-4" /> Série de 10
           </button>
         </section>
         )}
         {trainTab === 'entraineur' && (
         <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-700 p-4">
           <p className="text-sm text-stone-300">
-            🧑‍🏫 <strong>Entraîneur ?</strong> Compose une série de positions et envoie-la par lien à tes élèves.
+            <Icon name="board" className="h-5 w-5 text-amber-300" /> <strong>Entraîneur ?</strong> Compose une série de positions, envoie-la par lien ou imprime-la en fiche, et garde tes séries dans ta bibliothèque.
           </p>
           <button type="button" onClick={p.onCoach} className="rounded-lg bg-stone-700 px-4 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
             Créer une série
@@ -524,7 +565,7 @@ export function HomeScreen(p: Props) {
       {!p.compact && (
         <>
         <section className="mt-8 flex flex-wrap items-center gap-2 text-sm" aria-label="Couleurs de l'échiquier">
-          <span className="text-stone-400">🎨 Échiquier :</span>
+          <span className="text-stone-400"><Icon name="palette" className="h-4 w-4" /> Échiquier :</span>
           {BOARD_THEMES.map((t) => (
             <button
               key={t.id}
@@ -547,11 +588,11 @@ export function HomeScreen(p: Props) {
           et Stockfish. Échiquier : chessground (Lichess). Logiciel libre sous licence GPL v3.
           <div className="mt-2 flex flex-wrap gap-4">
             <button type="button" onClick={p.onPrivacy} className="text-sky-400 hover:underline">
-              🔒 Données personnelles
+              <Icon name="lock" className="h-4 w-4" /> Données personnelles
             </button>
             {SOURCE_URL && (
               <a href={SOURCE_URL} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
-                Code source (GPL v3)
+                <Icon name="code" className="h-4 w-4" /> Code source (GPL v3)
               </a>
             )}
           </div>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { decodeSeries, encodeSeries, resultText } from '../src/core/series';
+import { decodeSeries, encodeSeries, parseBulk, resultText } from '../src/core/series';
 
 const known = (id: string) => id.startsWith('bases-');
 
@@ -22,4 +22,25 @@ test('série par lien : entrées invalides ignorées, lien cassé refusé', () =
 
 test('texte du résultat', () => {
   assert.equal(resultText('Test', [true, false, null]), 'Série « Test » : 1/3 réussies — 1✅ 2❌ 3– (Chess Endgame Rush)');
+});
+
+test('ajout en masse : FEN, titre et objectif par ligne', () => {
+  const { items, invalid } = parseBulk(
+    [
+      '8/8/8/4k3/8/8/8/R3K3 w - - 0 1',
+      '',
+      '4k3/7R/r7/3PK3/8/8/8/8 b - - 0 1 ; Philidor ; nulle',
+      'pas une position',
+      '8/8/8/4k3/8/8/8/3QK3 w - - 0 1 | Mat dame | gain',
+    ].join('\n'),
+  );
+  assert.deepEqual(invalid, [4]);
+  assert.deepEqual(
+    items.map((x) => [x.line, x.objective, x.title ?? null]),
+    [
+      [1, 'win', null],
+      [3, 'draw', 'Philidor'],
+      [5, 'win', 'Mat dame'],
+    ],
+  );
 });

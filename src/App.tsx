@@ -3,7 +3,8 @@ import { subcategoryOf } from './core/categories';
 import { CONFIG, rushRules, TECHNIQUE_RULES, TRAINING_RULES } from './core/config';
 import { countPieces } from './core/fen';
 import { applyUci } from './core/chessRules';
-import { dueNow, reviewItems } from './core/review';
+import { dueNow, maintenanceDue, reviewItems } from './core/review';
+import { recordExam } from './core/exam';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
 import { decodeSeries, type Series } from './core/series';
@@ -28,7 +29,7 @@ import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string };
 
 const embed = readEmbedOptions();
 
@@ -39,6 +40,7 @@ const loadLeaderboard = () => import('./screens/LeaderboardScreen');
 const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ default: m.CoachScreen })));
 const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
 const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
+const ExamScreen = lazy(() => import('./screens/ExamScreen').then((m) => ({ default: m.ExamScreen })));
 const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
 const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
 const ProgressScreen = lazy(() => loadProgress().then((m) => ({ default: m.ProgressScreen })));
@@ -343,6 +345,35 @@ export default function App() {
     [playerId, screen],
   );
 
+  // Entretien des acquis : Bases réussies à rejouer (7, 21, 60 puis 120 jours).
+  const maintenance = useMemo(
+    () => (playerId ? maintenanceDue(playerStore.history(playerId).attempts, PARCOURS, Date.now()).map((i) => i.id) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recalculé au retour à l'accueil
+    [playerId, screen],
+  );
+
+  // Tests de maîtrise des thèmes « Bases » (bilans gardés sur cet appareil, par profil).
+  const examKey = playerId ?? 'invite';
+  const [exams, setExams] = useState(() => getSettings().exams);
+  const [examResults, setExamResults] = useState<(boolean | null)[]>([]);
+  const startExam = useCallback((group: string) => {
+    const g = BASICS_GROUPS.find((x) => x.id === group);
+    if (!g) return;
+    setExamResults(g.ids.map(() => null));
+    setScreen({ name: 'exam', group, index: 0 });
+  }, []);
+  const finishExam = useCallback(
+    (group: string, results: (boolean | null)[]) => {
+      const all = getSettings().exams;
+      const mine = all[examKey] ?? {};
+      const next = { ...all, [examKey]: { ...mine, [group]: recordExam(mine[group], results, Date.now()) } };
+      setSetting('exams', next);
+      setExams(next);
+      setScreen({ name: 'examEnd', group });
+    },
+    [examKey],
+  );
+
   /**
    * « L'autre camp » : l'ordinateur joue le premier coup du camp gagnant (le meilleur
    * selon la table), puis le joueur défend la position perdue le plus longtemps possible.
@@ -429,7 +460,7 @@ export default function App() {
     const id = screen.ids[screen.index];
     const puzzle = puzzlesById.get(id);
     const next = () =>
-      setScreen(screen.index + 1 < screen.ids.length ? { name: 'review', ids: screen.ids, index: screen.index + 1 } : { name: 'home' });
+      setScreen(screen.index + 1 < screen.ids.length ? { ...screen, index: screen.index + 1 } : { name: 'home' });
     if (!puzzle) {
       next();
       return shell(null);
@@ -442,12 +473,60 @@ export default function App() {
         judge={judge}
         rules={reviewFull.has(id) ? (puzzle.collection === 'bases' ? TRAINING_RULES : TECHNIQUE_RULES) : puzzle.solution ? rushRules(puzzle.solution) : TRAINING_RULES}
         backLabel="← Arrêter la révision"
-        header={`🔁 Révision des erreurs · ${screen.index + 1}/${screen.ids.length} — sans chrono, la flèche montre le bon coup en cas d'erreur`}
+        header={
+          screen.maintenance
+            ? `🔄 Entretien des acquis · ${screen.index + 1}/${screen.ids.length} — une position déjà réussie, à rejouer pour ne pas l’oublier`
+            : `🔁 Révision des erreurs · ${screen.index + 1}/${screen.ids.length} — sans chrono, la flèche montre le bon coup en cas d'erreur`
+        }
         onAttempt={onReviewAttempt}
         onHome={() => setScreen({ name: 'home' })}
         onNext={next}
       />,
     );
+  }
+
+  if (screen.name === 'exam') {
+    const g = BASICS_GROUPS.find((x) => x.id === screen.group);
+    const puzzle = g ? BASICS.find((b) => b.id === g.ids[screen.index]) : undefined;
+    if (g && puzzle) {
+      const i = screen.index;
+      const last = i + 1 >= g.ids.length;
+      return shell(
+        <GameScreen
+          key={`exam-${g.id}-${i}`}
+          puzzle={puzzle}
+          position={{ index: i, total: g.ids.length }}
+          judge={judge}
+          exam
+          backLabel="← Abandonner le test"
+          header={`🎓 Test de maîtrise — ${g.label} · ${i + 1}/${g.ids.length}`}
+          onAttempt={(p, ok) => {
+            if (examResults[i] !== null) return;
+            setExamResults((r) => r.map((x, j) => (j === i ? ok : x)));
+            onTrainingAttempt(p, ok);
+          }}
+          onHome={() => setScreen({ name: 'home' })}
+          onNext={() => (last ? finishExam(g.id, examResults) : setScreen({ name: 'exam', group: g.id, index: i + 1 }))}
+        />,
+      );
+    }
+  }
+
+  if (screen.name === 'examEnd') {
+    const g = BASICS_GROUPS.find((x) => x.id === screen.group);
+    if (g) {
+      return shell(
+        <ExamScreen
+          label={g.label.replace(/^\S+\s/, '')}
+          titles={g.ids.map((id) => BASICS.find((b) => b.id === id)?.title ?? id)}
+          results={examResults}
+          record={exams[examKey]?.[g.id]}
+          onRetry={() => startExam(g.id)}
+          onTrain={(i) => setScreen({ name: 'training', index: BASICS.findIndex((b) => b.id === g.ids[i]) })}
+          onHome={() => setScreen({ name: 'home' })}
+        />,
+      );
+    }
   }
 
   if (screen.name === 'coach') {
@@ -651,6 +730,10 @@ export default function App() {
       best={mode === 'training' ? null : getBest(key)}
       basics={BASICS}
       basicsDone={basicsDone}
+      exams={exams[examKey] ?? {}}
+      onExam={startExam}
+      maintenance={maintenance.length}
+      onMaintenance={() => maintenance.length && setScreen({ name: 'review', ids: maintenance, index: 0, maintenance: true })}
       onMode={setMode}
       onTheme={(t) => {
         setTheme(t);
