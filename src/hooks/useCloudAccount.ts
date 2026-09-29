@@ -42,8 +42,9 @@ export interface CloudAccount {
   /** Délie le profil local du compte et se déconnecte sur cet appareil. */
   unlinkProfile(): Promise<void>;
   /** Pseudo public et participation au classement (null tant que non chargé). */
-  publicProfile: { pseudo: string; leaderboard: boolean } | null;
-  setLeaderboard(on: boolean, pseudo: string): Promise<void>;
+  publicProfile: { pseudo: string; leaderboard: boolean; ageOk: boolean } | null;
+  /** ageOk : le joueur atteste avoir 15 ans ou plus, ou l'accord d'un parent. */
+  setLeaderboard(on: boolean, pseudo: string, ageOk?: boolean): Promise<void>;
 }
 
 const appUrl = () => `${window.location.origin}${window.location.pathname}`;
@@ -188,8 +189,8 @@ export function useCloudAccount(
     let cancelled = false;
     void (async () => {
       try {
-        const { data } = await (await sb()).from('profiles').select('pseudo, leaderboard').maybeSingle();
-        if (!cancelled && data) setPublicProfile({ pseudo: data.pseudo, leaderboard: !!data.leaderboard });
+        const { data } = await (await sb()).from('profiles').select('*').maybeSingle();
+        if (!cancelled && data) setPublicProfile({ pseudo: data.pseudo, leaderboard: !!data.leaderboard, ageOk: !!data.age_ok });
       } catch {
         /* colonne absente (migration 0004 non exécutée) ou réseau : réglage masqué */
       }
@@ -324,16 +325,19 @@ export function useCloudAccount(
       }),
 
     publicProfile,
-    setLeaderboard: (on, pseudo) =>
+    setLeaderboard: (on, pseudo, ageOk) =>
       run(async () => {
+        if (on && !ageOk && !publicProfile?.ageOk) throw 'Coche d’abord la case « 15 ans ou plus, ou accord d’un parent ».';
         const clean = pseudo.trim();
         if (!/^[\p{L}\p{N} _.-]{2,30}$/u.test(clean)) throw 'Pseudo : 2 à 30 caractères (lettres, chiffres, espace, _ . -).';
         if (!session) throw 'Non connecté.';
-        const { error } = await (await sb()).from('profiles').update({ pseudo: clean, leaderboard: on }).eq('user_id', session.user.id);
+        const change = on && ageOk ? { pseudo: clean, leaderboard: on, age_ok: true } : { pseudo: clean, leaderboard: on };
+        const { error } = await (await sb()).from('profiles').update(change).eq('user_id', session.user.id);
+        if (error?.code === '23514' && /age/.test(error.message ?? '')) throw 'Participation impossible sans l’attestation d’âge (15 ans ou accord d’un parent).';
         if (error?.code === '23505') throw 'Ce pseudo est déjà utilisé dans le classement : choisissez-en un autre.';
         if (error?.code === '23514') throw 'Pseudo refusé : 2 à 30 caractères (lettres, chiffres, espace, _ . -).';
         if (error) throw error;
-        setPublicProfile({ pseudo: clean, leaderboard: on });
+        setPublicProfile({ pseudo: clean, leaderboard: on, ageOk: !!(publicProfile?.ageOk || (on && ageOk)) });
         ok(on ? `Vous apparaissez dans le classement sous le pseudo « ${clean} » (mise à jour sous 5 min).` : 'Vous n’apparaissez plus dans le classement (mise à jour sous 5 min).');
       }),
 

@@ -197,6 +197,14 @@ export function AccountPanel({ account, playerId, playerName }: { account: Cloud
   // 4. Déconnecté
   return (
     <Box>
+      <div className="rounded-lg bg-sky-500/10 p-3 text-sm text-stone-200">
+        <p className="font-semibold">Pourquoi un compte ? (gratuit, facultatif)</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          <li>Retrouver tes parties et ta progression sur tous tes appareils.</li>
+          <li>Ne rien perdre si tu changes de téléphone ou effaces ton navigateur.</li>
+          <li>Apparaître, si tu le veux, au classement du club et au défi de la semaine.</li>
+        </ul>
+      </div>
       <div className="flex gap-2">
         {(
           [
@@ -289,6 +297,7 @@ function Box({ children }: { children: ReactNode }) {
 function LeaderboardOptIn({ account: a }: { account: CloudAccount }) {
   const current = a.publicProfile!;
   const [pseudo, setPseudo] = useState(current.pseudo);
+  const [ageOk, setAgeOk] = useState(current.ageOk);
   return (
     <details className="rounded-lg bg-stone-900/60 p-3">
       <summary className="cursor-pointer text-sm font-semibold text-stone-200">
@@ -322,9 +331,18 @@ function LeaderboardOptIn({ account: a }: { account: CloudAccount }) {
               </button>
             </>
           ) : (
-            <button type="button" className={primary} disabled={a.busy} onClick={() => a.setLeaderboard(true, pseudo)}>
-              Apparaître dans le classement
-            </button>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1" checked={ageOk} onChange={(e) => setAgeOk(e.target.checked)} />
+                <span>
+                  J’ai <strong>15 ans ou plus</strong>, ou un parent a donné son accord. (En France, un mineur de moins de 15 ans a besoin de
+                  l’accord d’un parent pour ce type de publication.)
+                </span>
+              </label>
+              <button type="button" className={`${primary} self-start`} disabled={a.busy || !ageOk} onClick={() => a.setLeaderboard(true, pseudo, ageOk)}>
+                Apparaître dans le classement
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 
 const CONTACT = import.meta.env.VITE_CONTACT_EMAIL || '';
 export const SOURCE_URL = import.meta.env.VITE_SOURCE_URL || '';
-const UPDATED = '26 septembre 2026';
+const UPDATED = '29 septembre 2026';
 
 export function PrivacyScreen({ onHome }: { onHome: () => void }) {
   return (
@@ -75,7 +75,8 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
           résultats calculés à partir de votre historique (Elo, record Storm, puzzles réussis sur 7 jours, défi de la semaine) sont visibles par
           tous les visiteurs du site. Ni votre email ni l’identifiant de votre compte ne sont publiés. Base : votre
           consentement, que vous pouvez retirer à tout moment (« Me retirer du classement ») ; le classement est mis à jour
-          sous 5 minutes.
+          sous 5 minutes. Pour participer, vous attestez avoir 15 ans ou plus, ou l’accord d’un titulaire de l’autorité
+          parentale (loi Informatique et Libertés, article 45).
         </p>
       </Section>
 
