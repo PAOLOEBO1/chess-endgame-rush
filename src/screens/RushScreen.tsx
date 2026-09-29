@@ -56,6 +56,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
   const [result, setResult] = useState<{ isRecord: boolean; previous: BestScore | null } | null>(null);
   const excluded = useRef(new Set<string>()); // puzzles déjà servis dans CETTE partie : jamais redonnés
   const lastSub = useRef<string | undefined>(undefined);
+  const lastRating = useRef<number | undefined>(undefined); // Elo du dernier puzzle servi (progression régulière)
   const nextPuzzle = useRef<Promise<Puzzle | null> | null>(null);
   const rushRef = useRef(rush);
   rushRef.current = rush;
@@ -73,6 +74,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
       for (let attempt = 0; attempt < 8; attempt += 1) {
         const candidate = pickNext(engineDownRef.current ? smallPool : pool, target, excluded.current, Math.random, {
           previousSubcategory: lastSub.current,
+          previousRating: lastRating.current,
           recentlySeen,
         });
         if (!candidate) return null;
@@ -111,6 +113,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           return;
         }
         setCurrent(first);
+        lastRating.current = first.rating;
         nextPuzzle.current = preload(findPlayable(startRating + eloStep(mode)));
       } catch (error) {
         if (!cancelled) setProblem(error instanceof Error ? error.message : String(error));
@@ -180,7 +183,11 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
       }
       await sleep(end === 'solved' ? CONFIG.modes.rushPauseAfterSuccessMs : CONFIG.modes.rushPauseAfterFailureMs);
       try {
-        const upcoming = await (nextPuzzle.current ?? findPlayable(targetRating(next)));
+        // Le puzzle suivant est préparé en avance pour une réussite (Elo visé + un pas).
+        // Après une erreur, l'Elo visé n'a pas monté : on tire un puzzle à ce niveau.
+        const failed = end === 'failed';
+        if (failed) nextPuzzle.current?.catch(() => undefined);
+        const upcoming = await (failed || !nextPuzzle.current ? findPlayable(targetRating(next)) : nextPuzzle.current);
         if (rushRef.current.status === 'over') return;
         if (!upcoming) {
           setRush((r) => ({ ...r, status: 'over' }));
@@ -188,6 +195,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           return;
         }
         setCurrent(upcoming);
+        lastRating.current = upcoming.rating;
         nextPuzzle.current = preload(findPlayable(targetRating(next) + eloStep(mode)));
       } catch (error) {
         setProblem(error instanceof Error ? error.message : String(error));

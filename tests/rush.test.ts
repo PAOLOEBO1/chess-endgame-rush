@@ -136,3 +136,11 @@ test('ligne Lichess : l’adversaire rejoue le coup de la partie s’il est auss
   const pos2 = tbPosition('loss', [tbMove('e5f5', 'Kf5', 'win', 25), tbMove('e5e6', 'Ke6', 'win', 11)]);
   assert.equal(preferLineReply(pos2, pos2.moves[0], ['a1a2'], ['a1a2', 'e5e6']).uci, 'e5e6');
 });
+
+test('progression régulière : pas de retour nettement plus facile que le puzzle précédent', () => {
+  const pool = Array.from({ length: 60 }, (_, i) => P(`q${i}`, 950 + i * 5));
+  for (let k = 0; k < 20; k++) {
+    const p = pickNext(pool, 1000, new Set(), Math.random, { previousRating: 1090 })!;
+    assert.ok(p.rating >= 1090 - 30, `trop facile : ${p.rating}`);
+  }
+});

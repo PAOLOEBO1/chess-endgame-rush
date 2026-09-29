@@ -1,8 +1,10 @@
 // Choix du prochain puzzle d'une partie Rush.
 //
 //  1. Jamais deux fois le même puzzle dans une partie (`excluded`).
-//  2. Difficulté : dans une fenêtre autour de l'Elo visé (un peu plus large
-//     vers le haut) ; si elle est trop pauvre, les 8 puzzles les plus proches.
+//  2. Difficulté : dans une fenêtre serrée autour de l'Elo visé (−50 / +90) ;
+//     si elle est trop pauvre, les 8 puzzles les plus proches. Et, tant qu'il
+//     reste du choix, jamais nettement plus facile que le puzzle précédent
+//     (progression régulière, façon Puzzle Storm).
 //  3. Variété : on évite de redonner le même sous-thème que le puzzle
 //     précédent, et on préfère les puzzles pas vus récemment (autres parties),
 //     tant qu'il reste assez de choix.
@@ -15,10 +17,14 @@ export interface PickOptions {
   previousSubcategory?: string;
   /** Puzzles joués lors des parties récentes (à éviter si possible). */
   recentlySeen?: ReadonlySet<string>;
+  /** Elo du puzzle précédent : éviter de redescendre de plus de DROP_TOLERANCE. */
+  previousRating?: number;
 }
 
-const WINDOW_BELOW = 100;
-const WINDOW_ABOVE = 150;
+const WINDOW_BELOW = 50;
+const WINDOW_ABOVE = 90;
+/** Baisse tolérée par rapport au puzzle précédent (variété sans « retour en arrière »). */
+export const DROP_TOLERANCE = 30;
 const MIN_CHOICE = 5;
 
 export function pickNext(
@@ -41,11 +47,12 @@ export function pickNext(
       .map((x) => x.p);
   }
 
-  // Variété (préférences, jamais bloquantes)
+  // Préférences (jamais bloquantes) : progression régulière, puis variété.
   const prefer = (keep: (p: Puzzle) => boolean) => {
     const kept = candidates.filter(keep);
     if (kept.length >= Math.min(MIN_CHOICE, candidates.length) && kept.length > 0) candidates = kept;
   };
+  if (options.previousRating !== undefined) prefer((p) => p.rating >= options.previousRating! - DROP_TOLERANCE);
   if (options.recentlySeen?.size) prefer((p) => !options.recentlySeen!.has(p.id));
   if (options.previousSubcategory) prefer((p) => p.subcategory !== options.previousSubcategory);
 
