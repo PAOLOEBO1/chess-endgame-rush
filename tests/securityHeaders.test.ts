@@ -30,5 +30,5 @@ test('en-têtes : sans configuration, aucune intégration externe', () => {
 test('en-têtes : Cloudflare Web Analytics autorisé seulement si activé', () => {
   const h = buildHeaders({ VITE_CF_ANALYTICS: '1' });
   assert.match(h, /script-src 'self' 'wasm-unsafe-eval' https:\/\/static\.cloudflareinsights\.com;/);
-  assert.match(h, /connect-src 'self' /);
+  assert.match(h, /connect-src 'self' https:\/\/tablebase\.lichess\.ovh https:\/\/cloudflareinsights\.com;/);
 });

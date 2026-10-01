@@ -25,7 +25,8 @@ export function buildHeaders(env) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    `connect-src ${join("'self'", 'https://tablebase.lichess.ovh', supabase, supabase && supabase.replace('https://', 'wss://'))}`,
+    // Le script de mesure d'audience envoie ses données à cloudflareinsights.com/cdn-cgi/rum.
+    `connect-src ${join("'self'", 'https://tablebase.lichess.ovh', supabase, supabase && supabase.replace('https://', 'wss://'), analytics && 'https://cloudflareinsights.com')}`,
     "worker-src 'self'",
     `frame-src ${turnstile ?? "'none'"}`,
     `frame-ancestors ${join("'self'", ...parents)}`,
