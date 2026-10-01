@@ -624,12 +624,23 @@ export function HomeScreen(p: Props) {
         </section>
         )}
         {trainTab === 'entraineur' && (
-        <section className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-700 p-4">
-          <p className="text-sm text-stone-300">
-            <Icon name="board" className="h-5 w-5 text-amber-300" /> <strong>Entraîneur ?</strong> Compose une série de positions, envoie-la par lien ou imprime-la en fiche, et garde tes séries dans ta bibliothèque.
-          </p>
-          <button type="button" onClick={p.onCoach} className="rounded-lg bg-stone-700 px-4 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-600">
-            Créer une série
+        <section className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={p.onCoach} className="flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-left hover:bg-amber-500/20">
+            <span className="text-lg font-bold text-stone-50">
+              <Icon name="library" className="h-5 w-5 text-amber-300" /> Exercices de mon groupe
+            </span>
+            <span className="text-sm text-stone-300">
+              Importe tes exercices en PGN : tes élèves les jouent en Storm et en Streak (thème « Entraîneur »), du plus facile au plus
+              difficile. Compte nécessaire.
+            </span>
+            <span className="mt-auto text-sm font-semibold text-amber-300">Importer mes PGN →</span>
+          </button>
+          <button type="button" onClick={p.onCoach} className="flex flex-col gap-2 rounded-xl border border-stone-700 p-4 text-left hover:bg-stone-800">
+            <span className="text-lg font-bold text-stone-50">
+              <Icon name="link" className="h-5 w-5 text-amber-300" /> Séries par lien
+            </span>
+            <span className="text-sm text-stone-300">Choisis quelques positions, envoie-les par lien ou imprime la fiche ; tes élèves te renvoient leur résultat.</span>
+            <span className="mt-auto text-sm font-semibold text-amber-300">Créer une série →</span>
           </button>
         </section>
         )}
