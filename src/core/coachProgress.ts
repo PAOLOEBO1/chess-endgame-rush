@@ -107,7 +107,7 @@ export function studentRows(members: MemberProgress[]): StudentRow[] {
       success: played ? (played - errors) / played : null,
       recentStorm: storm.slice(-10),
       trend: last5.length === 5 && prev5.length === 5 ? Math.round((avg(last5) - avg(prev5)) * 10) / 10 : null,
-      lastSeen: m.lastSeen,
+      lastSeen: rs.length ? rs[rs.length - 1].t : m.lastSeen,
       medianMs: median(rs.flatMap((r) => (r.d ?? []).filter((d) => d.ok && d.ms != null).map((d) => d.ms!))),
     };
   });

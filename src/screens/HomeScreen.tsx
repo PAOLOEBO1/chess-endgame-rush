@@ -59,6 +59,9 @@ interface Props {
   motifs: MotifChoice[];
   motif: string;
   onMotif: (id: string) => void;
+  /** Devoirs en cours du groupe d'entraîneur rejoint. */
+  homework: { id: string; title: string; due: string; daysLeft: number; goal: number; done: number }[];
+  onHomework: (id: string) => void;
   playerName: string | null;
   /** Menu de l'en-tête : profils de l'appareil et compte connecté. */
   players: ProfileEntry[];
@@ -315,7 +318,7 @@ const todayBtn = (primary = false) =>
 /** Ce qu'il y a à faire aujourd'hui, en une seule carte (révision, puzzle du jour, défi, point faible). */
 function TodayCard({ p }: { p: Props }) {
   const review = p.review && p.review.total > 0 ? p.review : null;
-  if (!review && !p.daily && !p.challenge && !p.weakness && !p.streak) return null;
+  if (!review && !p.daily && !p.challenge && !p.weakness && !p.streak && !p.homework.length) return null;
   const streak = p.streak;
   return (
     <section aria-labelledby="today-title" className="mb-6 rounded-xl border border-stone-700 bg-stone-800/50 px-4 pb-2 pt-3">
@@ -334,6 +337,28 @@ function TodayCard({ p }: { p: Props }) {
         )}
       </div>
       <ul className="divide-y divide-stone-700/60">
+        {p.homework.map((hw) => (
+          <TodayRow
+            key={hw.id}
+            icon="board"
+            action={
+              hw.done >= hw.goal ? (
+                <span className="flex items-center gap-1 text-sm font-semibold text-emerald-300">
+                  <Icon name="check" className="h-4 w-4" /> fait
+                </span>
+              ) : (
+                <button type="button" onClick={() => p.onHomework(hw.id)} className={todayBtn(true)}>
+                  Faire
+                </button>
+              )
+            }
+          >
+            <strong>Devoir : {hw.title}</strong>{' '}
+            <span className="text-stone-400">
+              · {hw.done}/{hw.goal} réussis · avant le {new Date(`${hw.due}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+            </span>
+          </TodayRow>
+        ))}
         {review && (
           <TodayRow
             icon="refresh"

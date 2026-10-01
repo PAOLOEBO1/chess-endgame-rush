@@ -65,7 +65,7 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
           <li>votre <strong>pseudo</strong> ;</li>
           <li>votre <strong>historique d’entraînement</strong> : exercices tentés, réussite, type d’erreur, temps de réflexion, premier mauvais coup, difficulté, scores Storm et Streak ;</li>
           <li>vos <strong>tests de maîtrise</strong> des Bases et votre <strong>bibliothèque de séries</strong> d’entraîneur (positions et noms que vous avez saisis) ;</li>
-          <li>entraîneurs : la <strong>base d’exercices</strong> que vous importez (positions, coups, titres, thèmes), lisible par toute personne qui a le code du groupe ;</li>
+          <li>entraîneurs : la <strong>base d’exercices</strong> que vous importez (positions, coups, titres, thèmes) et vos <strong>devoirs</strong> (titre, critères, échéance), lisible par toute personne qui a le code du groupe ;</li>
           <li>
             élèves d’un groupe, <strong>seulement s’ils l’acceptent</strong> (case à cocher ; moins de 15 ans : accord d’un parent) : un
             <strong> pseudo</strong> et les résultats de leurs parties sur les exercices de l’entraîneur (score, erreurs, et pour chaque exercice : réussite, temps de réflexion, premier mauvais coup, type d’erreur),

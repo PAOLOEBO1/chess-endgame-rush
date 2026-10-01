@@ -171,7 +171,7 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
     ) : loading ? (
       <p className="text-sm text-stone-400">Chargement…</p>
     ) : set ? (
-      <CoachProgressPanel items={set.items} version={set.updatedAt} />
+      <CoachProgressPanel set={set} onSetChange={setSet} />
     ) : (
       <p className="text-sm text-stone-400">Importe d’abord tes exercices (onglet « Mon groupe ») et envoie le lien à tes élèves.</p>
     );
@@ -184,7 +184,7 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
       </h2>
       <p className="text-sm text-stone-400">
         Importe tes propres exercices en PGN : tes élèves les jouent en Storm ou en Streak avec le thème <strong>« Entraîneur »</strong>, du
-        plus facile au plus difficile. Chaque import <strong>remplace toute ta base</strong>.
+        plus facile au plus difficile. Chaque import <strong>remplace toute ta base</strong> (et efface les devoirs, liés aux rangs des exercices).
       </p>
 
       {!signedIn ? (

@@ -33,12 +33,13 @@ import { cachedGroupSet, declineShare, fetchGroupSet, forgetGroupSet, joinTracki
 import { coachDetail, coachIndexOf } from './core/coachProgress';
 import { coachPuzzles } from './core/coachSet';
 import { hasMotif, motifChoices } from './core/motifs';
+import { dueInfo, homeworkGoal, homeworkIndices, myHomeworkDone } from './core/homework';
 import { scheduleUserDataSync, USER_DATA_EVENT } from './services/userDataSync';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' };
 
 const embed = readEmbedOptions();
 
@@ -336,6 +337,17 @@ export default function App() {
     return { streak: dayStreak(acts, now), daily, dailyResult: dailyTry ? dailyTry.ok : null };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId, lichess, screen]);
+  // --- Devoirs du groupe d'entraîneur (élève) ---------------------------------
+  const homeworkToday = useMemo(() => {
+    if (!coachSet?.homework.length) return [];
+    const now = Date.now();
+    const acts = playerId ? playerStore.history(playerId).attempts : [];
+    return coachSet.homework
+      .map((hw) => ({ hw, info: dueInfo(hw, now), goal: homeworkGoal(coachSet.items, hw) }))
+      .filter(({ info, goal }) => goal > 0 && !info.late)
+      .map(({ hw, info, goal }) => ({ id: hw.id, title: hw.title, due: hw.due, daysLeft: info.daysLeft, goal, done: Math.min(goal, myHomeworkDone(acts, hw, coachSet.items, coachSet.code)) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recalculé au retour à l'accueil
+  }, [coachSet, playerId, screen]);
   // --- Défi de la semaine : mêmes 10 positions pour tous, 1re tentative seulement ---
   const challenge = useMemo(() => {
     const now = Date.now();
@@ -818,21 +830,27 @@ export default function App() {
     );
   }
 
-  if (screen.name === 'rush' && pool && mode !== 'training') {
+  // Devoir de l'entraîneur : Streak sur les seuls exercices du devoir, du plus facile au plus difficile.
+  const hwRun = screen.name === 'rush' && screen.hw && coachSet ? coachSet.homework.find((h) => h.id === screen.hw) ?? null : null;
+  const hwPool = hwRun && coachSet ? homeworkIndices(coachSet.items, hwRun).map((i) => coachPool[i]).filter((p): p is Puzzle => !!p) : null;
+  if (screen.name === 'rush' && (hwPool?.length || pool) && mode !== 'training') {
+    const runPool = hwPool?.length ? hwPool : pool!;
+    const runTheme = hwPool?.length ? `entraineur.hw-${hwRun!.id}` : themeKey;
+    const runStart = hwPool?.length ? Math.max(400, Math.floor(Math.min(...hwPool.map((p) => p.rating)) / 50) * 50) : effectiveStart;
     return shell(
       <RushScreen
         key={screen.run}
         mode={mode}
-        pool={pool}
-        theme={themeKey}
-        startRating={effectiveStart}
-        scoreKey={key}
+        pool={runPool}
+        theme={runTheme}
+        startRating={runStart}
+        scoreKey={hwPool?.length ? scoreKey(mode, `${playerId ?? 'invite'}|${runTheme}`, 0) : key}
         judge={judge}
         recentlySeen={recentlySeen}
         onReview={playerId ? startReview : undefined}
         onAttempt={onRushAttempt}
         onRunEnd={onRunEnd}
-        onRestart={() => setScreen({ name: 'rush', run: screen.run + 1 })}
+        onRestart={() => setScreen({ ...screen, run: screen.run + 1 })}
         onHome={() => setScreen({ name: 'home' })}
         onLesson={(id) => setScreen({ name: 'lesson', id })}
         onJoinLeaderboard={account.enabled && !account.publicProfile?.leaderboard ? () => setScreen({ name: 'leaderboard' }) : undefined}
@@ -866,6 +884,12 @@ export default function App() {
       motifs={motifs}
       motif={effMotif}
       onMotif={setMotif}
+      homework={homeworkToday}
+      onHomework={(id) => {
+        setMode('streak');
+        setTheme('entraineur');
+        setScreen({ name: 'rush', run: Date.now(), hw: id });
+      }}
       playerName={playerName}
       players={playerStore.listPlayers().map((pl) => ({ id: pl.id, name: pl.name, linked: !!account.session && linkedUser(pl.id) === account.session.user.id }))}
       playerId={playerId}
