@@ -31,6 +31,8 @@ interface Props {
   onReview?: (ids: string[]) => void;
   onRunEnd?: (run: { mode: RushMode; theme: string; level: number; score: number; errors: number; bestCombo: number; highest?: number; played?: number; moves?: number; durationMs?: number }) => void;
   onRestart: () => void;
+  /** Pas encore au classement public : lien pour y participer (fin de partie). */
+  onJoinLeaderboard?: () => void;
   onHome: () => void;
   /** Conseil de fin de partie : ouvrir une leçon, ou relancer un Storm sur une famille. */
   onLesson?: (id: string) => void;
@@ -54,7 +56,7 @@ function preload<T>(promise: Promise<T>): Promise<T> {
   return promise;
 }
 
-export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, recentlySeen, onAttempt, onRunEnd, onReview, onRestart, onHome, onLesson, onFocusFamily }: Props) {
+export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, recentlySeen, onAttempt, onRunEnd, onReview, onRestart, onHome, onLesson, onFocusFamily, onJoinLeaderboard }: Props) {
   const [rush, setRush] = useState<RushState>(() => startRush(mode, startRating));
   const [current, setCurrent] = useState<Puzzle | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -314,6 +316,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
             themeIsFamily={theme}
             onLesson={onLesson}
             onFocusFamily={onFocusFamily}
+            onJoinLeaderboard={onJoinLeaderboard}
           />
         ) : (
           <button type="button" onClick={onHome} className="self-start text-sm text-stone-400 hover:text-stone-100">
@@ -336,7 +339,9 @@ function ResultPanel({
   themeIsFamily,
   onLesson,
   onFocusFamily,
+  onJoinLeaderboard,
 }: {
+  onJoinLeaderboard?: () => void;
   advice: Advice | null;
   themeIsFamily: string;
   onLesson?: (id: string) => void;
@@ -411,6 +416,14 @@ function ResultPanel({
         >
           🔁 Revoir mes {failedIds.length} erreur{failedIds.length > 1 ? 's' : ''} sans chrono
         </button>
+      )}
+      {onJoinLeaderboard && rush.score > 0 && (
+        <p className="text-sm text-stone-300">
+          🏆 Tes scores n’apparaissent pas encore au classement public.{' '}
+          <button type="button" onClick={onJoinLeaderboard} className="font-semibold text-sky-400 hover:underline">
+            Comment y figurer ?
+          </button>
+        </p>
       )}
       <div className="flex gap-3">
         <button type="button" onClick={onRestart} className="flex-1 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400">

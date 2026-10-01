@@ -1,5 +1,7 @@
 // Classement public : Elo, record Storm, puzzles réussis sur 7 jours.
 
+import { LeaderboardOptIn } from '../components/AccountPanel';
+import type { CloudAccount } from '../hooks/useCloudAccount';
 import { useEffect, useState } from 'react';
 import { fetchLeaderboard, type Leaderboard, type LeaderboardKind } from '../services/leaderboard';
 
@@ -30,7 +32,16 @@ const TABS: { id: LeaderboardKind; label: string; unit: string; help: string }[]
   },
 ];
 
-export function LeaderboardScreen({ onHome, onAccount, signedIn }: { onHome: () => void; onAccount: () => void; signedIn: boolean }) {
+interface Props {
+  onHome: () => void;
+  /** Écran Joueurs et compte (connexion, création de compte). */
+  onAccount: () => void;
+  account: CloudAccount;
+}
+
+export function LeaderboardScreen({ onHome, onAccount, account }: Props) {
+  const signedIn = !!account.session && !account.needMfa;
+  const participating = !!account.publicProfile?.leaderboard;
   const [data, setData] = useState<Leaderboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<LeaderboardKind>('challenge');
@@ -56,6 +67,53 @@ export function LeaderboardScreen({ onHome, onAccount, signedIn }: { onHome: () 
           ← Accueil
         </button>
       </div>
+
+      {participating ? (
+        <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+          ✅ Tu figures au classement sous le pseudo <strong>« {account.publicProfile!.pseudo} »</strong>.{' '}
+          <button type="button" onClick={onAccount} className="text-sky-400 hover:underline">
+            Changer de pseudo ou me retirer
+          </button>
+        </p>
+      ) : (
+        <section className="flex flex-col gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4" aria-label="Comment apparaître au classement">
+          <h2 className="font-bold text-stone-50">Comment apparaître au classement ?</h2>
+          <ol className="flex flex-col gap-2 text-sm text-stone-200">
+            <li className="flex items-start gap-2">
+              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${signedIn ? 'bg-emerald-500 text-stone-900' : 'bg-amber-500 text-stone-900'}`}>
+                {signedIn ? '✓' : '1'}
+              </span>
+              <span className="flex-1">
+                <strong>Un compte gratuit</strong> (email + mot de passe) : tes résultats sont envoyés pour être classés.
+                {signedIn ? (
+                  <span className="text-emerald-300"> Fait : connecté.</span>
+                ) : (
+                  <>
+                    {' '}
+                    <button type="button" onClick={onAccount} className="font-semibold text-sky-400 hover:underline">
+                      Créer un compte ou me connecter →
+                    </button>
+                  </>
+                )}
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-stone-900">2</span>
+              <span className="flex-1">
+                <strong>Un pseudo</strong> et la case <strong>« 15 ans ou plus, ou accord d’un parent »</strong>, puis « Apparaître dans le
+                classement ». Ton email n’est jamais affiché.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-stone-900">3</span>
+              <span className="flex-1">
+                <strong>Jouer</strong> : défi de la semaine, Storm « Mix », puzzles… Le classement se met à jour toutes les 5 minutes.
+              </span>
+            </li>
+          </ol>
+          {signedIn && account.publicProfile && <LeaderboardOptIn account={account} standalone />}
+        </section>
+      )}
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Type de classement">
         {TABS.map((t) => (
@@ -97,10 +155,7 @@ export function LeaderboardScreen({ onHome, onAccount, signedIn }: { onHome: () 
 
       <p className="text-xs text-stone-400">
         {data?.computedAt && `Mis à jour à ${new Date(data.computedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} (toutes les 5 min). `}
-        Participation volontaire, sous un pseudo.{' '}
-        <button type="button" onClick={onAccount} className="text-sky-400 hover:underline">
-          {signedIn ? 'Régler ma participation (📈 → Compte)' : 'Créer un compte pour participer'}
-        </button>
+        Participation volontaire, sous un pseudo, révocable à tout moment.
       </p>
     </div>
   );

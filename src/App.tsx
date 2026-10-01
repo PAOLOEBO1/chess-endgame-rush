@@ -451,7 +451,7 @@ export default function App() {
   if (screen.name === 'leaderboard') {
     return shell(
       <LeaderboardScreen
-        signedIn={!!account.session}
+        account={account}
         onHome={() => setScreen({ name: 'home' })}
         onAccount={() => setScreen({ name: 'progress' })}
       />,
@@ -718,6 +718,7 @@ export default function App() {
         onRestart={() => setScreen({ name: 'rush', run: screen.run + 1 })}
         onHome={() => setScreen({ name: 'home' })}
         onLesson={(id) => setScreen({ name: 'lesson', id })}
+        onJoinLeaderboard={account.enabled && !account.publicProfile?.leaderboard ? () => setScreen({ name: 'leaderboard' }) : undefined}
         onFocusFamily={(family) => {
           setMode('storm');
           setTheme(family as ThemeChoice);

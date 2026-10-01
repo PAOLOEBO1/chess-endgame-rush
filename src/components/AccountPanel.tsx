@@ -343,12 +343,13 @@ function Box({ children }: { children: ReactNode }) {
 }
 
 /** Participation volontaire au classement public, sous un pseudo. */
-function LeaderboardOptIn({ account: a }: { account: CloudAccount }) {
+/** Participation au classement : pseudo public et attestation d'âge (aussi affiché dans l'écran Classement). */
+export function LeaderboardOptIn({ account: a, standalone = false }: { account: CloudAccount; standalone?: boolean }) {
   const current = a.publicProfile!;
   const [pseudo, setPseudo] = useState(current.pseudo);
   const [ageOk, setAgeOk] = useState(current.ageOk);
   return (
-    <details className="rounded-lg bg-stone-900/60 p-3">
+    <details className="rounded-lg bg-stone-900/60 p-3" open={standalone || !current.leaderboard}>
       <summary className="cursor-pointer text-sm font-semibold text-stone-200">
         🏆 Classement {current.leaderboard ? `(vous y figurez : ${current.pseudo})` : '(non affiché)'}
       </summary>
@@ -391,9 +392,15 @@ function LeaderboardOptIn({ account: a }: { account: CloudAccount }) {
               <button type="button" className={`${primary} self-start`} disabled={a.busy || !ageOk} onClick={() => a.setLeaderboard(true, pseudo, ageOk)}>
                 Apparaître dans le classement
               </button>
+              {!ageOk && <p className="text-xs text-stone-400">Coche d’abord la case ci-dessus pour activer le bouton.</p>}
             </div>
           )}
         </div>
+        {standalone && a.message && (
+          <p role="status" className={`text-sm ${a.message.tone === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>
+            {a.message.text}
+          </p>
+        )}
       </div>
     </details>
   );
