@@ -14,12 +14,14 @@ export function buildHeaders(env) {
   const supabase = /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.VITE_SUPABASE_URL ?? '') ? env.VITE_SUPABASE_URL : null;
   const turnstile = env.VITE_TURNSTILE_SITEKEY ? 'https://challenges.cloudflare.com' : null;
   const parents = parseOrigins(env.VITE_PARENT_ORIGINS);
+  // Cloudflare Web Analytics (sans cookie), injecté par Cloudflare Pages : script du « beacon », envoi vers /cdn-cgi/rum (même origine).
+  const analytics = env.VITE_CF_ANALYTICS === '1' ? 'https://static.cloudflareinsights.com' : null;
   const join = (...xs) => xs.filter(Boolean).join(' ');
 
   const csp = [
     "default-src 'self'",
     // 'wasm-unsafe-eval' : nécessaire au moteur Stockfish (WebAssembly), n'autorise PAS eval() en JavaScript.
-    `script-src ${join("'self'", "'wasm-unsafe-eval'", turnstile)}`,
+    `script-src ${join("'self'", "'wasm-unsafe-eval'", turnstile, analytics)}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",

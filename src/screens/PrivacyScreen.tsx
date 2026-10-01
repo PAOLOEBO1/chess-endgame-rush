@@ -22,7 +22,7 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
         <ul className="list-disc space-y-1 pl-5">
           <li>Sans compte, vos parties restent dans votre navigateur : rien n’est envoyé à nos serveurs.</li>
           <li>Avec un compte, nous conservons votre email, votre pseudo et votre historique d’entraînement, uniquement pour les retrouver sur vos appareils.</li>
-          <li>Aucune publicité, aucune revente, aucune mesure d’audience, aucun cookie publicitaire.</li>
+          <li>Aucune publicité, aucune revente, aucun cookie. Seule une mesure d’audience anonyme compte les visites (Cloudflare Web Analytics, sans cookie).</li>
           <li>Classement public : uniquement si vous l’activez, sous un pseudo.</li>
           <li>Vous pouvez supprimer votre compte et toutes ses données à tout moment, depuis l’appli.</li>
         </ul>
@@ -126,8 +126,12 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
 
       <Section title="Cookies et stockage">
         <p>
-          Pas de cookie publicitaire ni de mesure d’audience. Le site n’utilise que le stockage nécessaire à son fonctionnement
-          (profils, session de connexion, réglage du son).
+          Aucun cookie. Le site n’utilise que le stockage nécessaire à son fonctionnement (profils, session de connexion, réglages).
+        </p>
+        <p className="mt-2">
+          Mesure d’audience : <strong>Cloudflare Web Analytics</strong>, l’hébergeur du site, compte les pages vues et mesure les temps de
+          chargement, sans cookie ni stockage dans votre navigateur, et sans profil publicitaire. Cloudflare indique ne pas collecter de
+          données personnelles des visiteurs pour ce service.
         </p>
       </Section>
 
