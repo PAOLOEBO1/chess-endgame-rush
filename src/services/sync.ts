@@ -109,6 +109,19 @@ export async function flush(playerId: string): Promise<number> {
   }
 }
 
+/** Nombre d'entrées déjà enregistrées sur le compte (parties + puzzles), ou null si inconnu. */
+export async function remoteCount(): Promise<number | null> {
+  if (!cloudEnabled) return null;
+  const cloud = await getCloud();
+  if (!cloud) return null;
+  const [a, r] = await Promise.all([
+    cloud.from('attempts').select('t', { count: 'exact', head: true }),
+    cloud.from('runs').select('t', { count: 'exact', head: true }),
+  ]);
+  if (a.error || r.error) return null;
+  return (a.count ?? 0) + (r.count ?? 0);
+}
+
 /** Rapatrie l'historique en ligne et le fusionne dans le profil local. */
 export async function pull(store: PlayerStore, playerId: string): Promise<number> {
   if (!cloudEnabled || !linkedUser(playerId)) return 0;

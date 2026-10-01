@@ -4,7 +4,8 @@ import type { Factor, Session, SupabaseClient } from '@supabase/supabase-js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authErrorMessage, cloudEnabled, getCloud, markResetRequested, openedFromEmailLink, openedFromResetLink, passwordProblem, recoveryDetected } from '../services/cloud';
 import type { PlayerStore } from '../services/playerStore';
-import { flush, linkedUser, linkPlayer, pendingCount, playerOfUser, pull, unlinkPlayer } from '../services/sync';
+import { flush, linkedUser, linkPlayer, pendingCount, playerOfUser, pull, remoteCount, unlinkPlayer } from '../services/sync';
+import { linkPlan } from '../core/link';
 
 /** Client Supabase (chargé à part, voir getCloud). */
 async function sb(): Promise<SupabaseClient> {
@@ -45,6 +46,16 @@ export interface CloudAccount {
   publicProfile: { pseudo: string; leaderboard: boolean; ageOk: boolean } | null;
   /** ageOk : le joueur atteste avoir 15 ans ou plus, ou l'accord d'un parent. */
   setLeaderboard(on: boolean, pseudo: string, ageOk?: boolean): Promise<void>;
+  /** Profil de cet appareil relié au compte connecté (null : aucun). */
+  linkedPlayerId: string | null;
+  /**
+   * Première connexion sur cet appareil alors que le profil en cours a déjà
+   * des parties ET que le compte en a aussi : on demande avant de fusionner.
+   */
+  linkChoice: { playerId: string; name: string; entries: number; pseudo: string } | null;
+  resolveLink(merge: boolean): Promise<void>;
+  /** Renomme le profil relié et le pseudo du compte (un seul nom partout). */
+  renameLinked(name: string): Promise<void>;
 }
 
 const appUrl = () => `${window.location.origin}${window.location.pathname}`;
@@ -66,6 +77,7 @@ export function useCloudAccount(
   const [enrolling, setEnrolling] = useState<CloudAccount['enrolling']>(null);
   const [publicProfile, setPublicProfile] = useState<CloudAccount['publicProfile']>(null);
   const linkedFor = useRef<string | null>(null);
+  const [linkChoice, setLinkChoice] = useState<CloudAccount['linkChoice']>(null);
 
   const ok = (text: string) => setMessage({ tone: 'ok', text });
   const fail = (e: unknown) => setMessage({ tone: 'error', text: typeof e === 'string' ? e : authErrorMessage(e) });
@@ -149,7 +161,21 @@ export function useCloudAccount(
     [store],
   );
 
-  // Connexion complète (2FA comprise) : lier un profil local puis synchroniser.
+  /** Relie `pid` au compte, lui donne le nom du compte, le sélectionne et synchronise. */
+  const linkAndSync = useCallback(
+    async (pid: string, userId: string, pseudo: string | null) => {
+      linkPlayer(store, pid, userId);
+      if (pseudo) store.renamePlayer(pid, pseudo); // même nom sur tous les appareils
+      const name = store.listPlayers().find((p) => p.id === pid)?.name ?? 'Joueur';
+      await (await sb()).from('profiles').upsert({ user_id: userId, pseudo: pseudoFrom(name) }, { onConflict: 'user_id', ignoreDuplicates: true });
+      onPlayerChange(pid);
+      const added = await syncProfile(pid);
+      ok(added ? `Profil « ${name} » relié au compte : ${added} entrée(s) récupérée(s).` : `Profil « ${name} » relié au compte et synchronisé.`);
+    },
+    [store, onPlayerChange, syncProfile],
+  );
+
+  // Connexion complète (2FA comprise) : retrouver ou relier le profil du compte, puis synchroniser.
   useEffect(() => {
     if (!cloudEnabled || !session || needMfa || recovery) return;
     const userId = session.user.id;
@@ -157,20 +183,39 @@ export function useCloudAccount(
     linkedFor.current = userId;
     void (async () => {
       try {
-        let pid = playerOfUser(userId);
-        if (!pid) {
-          if (playerId && !linkedUser(playerId)) pid = playerId; // reprise du profil en cours
-          else {
-            const { data: prof } = await (await sb()).from('profiles').select('pseudo').maybeSingle();
-            pid = store.createPlayer(prof?.pseudo ?? (session.user.email ?? 'Joueur').split('@')[0]).id;
-          }
-          linkPlayer(store, pid, userId);
+        // 2FA activée : attendre que la session ait le niveau requis (sinon la base refuse tout).
+        const { data: aal } = await (await sb()).auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+          linkedFor.current = null;
+          setNeedMfa(true);
+          return;
         }
-        const name = store.listPlayers().find((p) => p.id === pid)?.name ?? 'Joueur';
-        await (await sb()).from('profiles').upsert({ user_id: userId, pseudo: pseudoFrom(name) }, { onConflict: 'user_id', ignoreDuplicates: true });
-        onPlayerChange(pid);
-        const added = await syncProfile(pid);
-        ok(added ? `Synchronisé : ${added} entrée(s) récupérée(s) du compte.` : 'Synchronisé.');
+        const known = playerOfUser(userId);
+        if (known) {
+          // Appareil déjà relié : le profil du compte est sélectionné à chaque ouverture,
+          // avec le nom du compte (renommé ailleurs, il l'est ici aussi).
+          const { data: prof } = await (await sb()).from('profiles').select('pseudo').maybeSingle();
+          if (prof?.pseudo && store.listPlayers().find((p) => p.id === known)?.name !== prof.pseudo) store.renamePlayer(known, prof.pseudo);
+          onPlayerChange(known);
+          const added = await syncProfile(known);
+          ok(added ? `Synchronisé : ${added} entrée(s) récupérée(s) du compte.` : 'Synchronisé.');
+          return;
+        }
+        const { data: prof } = await (await sb()).from('profiles').select('pseudo').maybeSingle();
+        const pseudo: string | null = prof?.pseudo ?? null;
+        const online = (await remoteCount()) ?? 0;
+        const current = playerId && !linkedUser(playerId) ? playerId : null;
+        const h = current ? store.history(current) : null;
+        const localEntries = h ? h.attempts.length + h.runs.length : 0;
+        const plan = linkPlan(current, localEntries, online);
+        if (plan === 'ask' && current) {
+          // Deux historiques différents : c'est au joueur de choisir.
+          setLinkChoice({ playerId: current, name: store.listPlayers().find((p) => p.id === current)?.name ?? 'Joueur', entries: localEntries, pseudo: pseudo ?? 'mon compte' });
+          return;
+        }
+        // Compte vide : il reprend le profil en cours. Compte déjà utilisé : profil vide repris, ou nouveau profil.
+        const pid = plan === 'current' && current ? current : store.createPlayer(pseudo ?? (session.user.email ?? 'Joueur').split('@')[0]).id;
+        await linkAndSync(pid, userId, online > 0 ? pseudo : null);
       } catch (e) {
         linkedFor.current = null;
         // Connexion réussie mais échange de données refusé : ne pas parler d'identifiants.
@@ -178,7 +223,7 @@ export function useCloudAccount(
         fail(`Connecté, mais synchronisation impossible${code ? ` (code : ${code})` : ''}. Vos parties restent enregistrées sur cet appareil ; réessayez plus tard.`);
       }
     })();
-  }, [session, needMfa, recovery, playerId, store, onPlayerChange, syncProfile]);
+  }, [session, needMfa, recovery, playerId, store, onPlayerChange, syncProfile, linkAndSync]);
 
   // Pseudo public et participation au classement.
   useEffect(() => {
@@ -339,6 +384,28 @@ export function useCloudAccount(
         if (error) throw error;
         setPublicProfile({ pseudo: clean, leaderboard: on, ageOk: !!(publicProfile?.ageOk || (on && ageOk)) });
         ok(on ? `Vous apparaissez dans le classement sous le pseudo « ${clean} » (mise à jour sous 5 min).` : 'Vous n’apparaissez plus dans le classement (mise à jour sous 5 min).');
+      }),
+
+    linkedPlayerId: session ? playerOfUser(session.user.id) : null,
+    linkChoice,
+    resolveLink: (merge) =>
+      run(async () => {
+        if (!session || !linkChoice) return;
+        const pid = merge ? linkChoice.playerId : store.createPlayer(linkChoice.pseudo).id;
+        setLinkChoice(null);
+        await linkAndSync(pid, session.user.id, linkChoice.pseudo);
+      }),
+    renameLinked: (name) =>
+      run(async () => {
+        const pid = session ? playerOfUser(session.user.id) : null;
+        if (!session || !pid) return;
+        const clean = pseudoFrom(name.trim());
+        store.renamePlayer(pid, name);
+        const { error } = await (await sb()).from('profiles').update({ pseudo: clean }).eq('user_id', session.user.id);
+        if (error?.code === '23505') throw 'Profil renommé sur cet appareil, mais ce nom est déjà pris dans le classement : le pseudo du compte reste inchangé.';
+        if (error) throw error;
+        if (publicProfile) setPublicProfile({ ...publicProfile, pseudo: clean });
+        ok(`Profil et compte renommés « ${clean} ».`);
       }),
 
     unlinkProfile: () =>

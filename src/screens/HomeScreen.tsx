@@ -3,6 +3,7 @@ import { BASICS_GROUPS } from '../data/puzzlesMock';
 import { CONFIG } from '../core/config';
 import { InstallButton } from '../components/InstallButton';
 import { Icon, type IconName } from '../components/Icon';
+import { ProfileMenu, type ProfileEntry } from '../components/ProfileMenu';
 import { SOURCE_URL } from './PrivacyScreen';
 import { sideToMove } from '../core/fen';
 import { materialSymbols } from '../core/material';
@@ -51,6 +52,11 @@ interface Props {
   /** Nombre de finales disponibles par sous-thème (id → n) et par famille. */
   counts: Map<string, number>;
   playerName: string | null;
+  /** Menu de l'en-tête : profils de l'appareil et compte connecté. */
+  players: ProfileEntry[];
+  playerId: string | null;
+  accountEmail: string | null;
+  onSelectPlayer: (id: string | null) => void;
   /** Profil et compte (stats = true : statistiques de progression). */
   onProgress: (stats?: boolean) => void;
   /** Classement public (absent si les comptes en ligne ne sont pas configurés). */
@@ -175,15 +181,7 @@ export function HomeScreen(p: Props) {
         >
           <Icon name="chart" className="h-5 w-5" />
         </button>
-        <button
-          type="button"
-          onClick={() => p.onProgress(false)}
-          className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
-          title="Joueurs et compte"
-          aria-label={`Joueurs et compte (profil : ${p.playerName ?? 'invité'})`}
-        >
-          <Icon name="user" className="h-5 w-5" /> <span className="hidden max-w-[10rem] truncate align-bottom sm:inline-block">{p.playerName ?? 'Invité'}</span>
-        </button>
+        <ProfileMenu players={p.players} playerId={p.playerId} accountEmail={p.accountEmail} onSelect={p.onSelectPlayer} onManage={() => p.onProgress(false)} />
         <button
           type="button"
           onClick={() => {

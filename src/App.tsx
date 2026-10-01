@@ -25,6 +25,7 @@ import { useCloudAccount } from './hooks/useCloudAccount';
 import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
+import { linkedUser } from './services/sync';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
@@ -123,7 +124,16 @@ export default function App() {
   }, [mode, theme, sub, startRating]);
   const [lichess, setLichess] = useState<Puzzle[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [playerId, setPlayerId] = useState<string | null>(() => playerStore.currentPlayerId());
+  const [playerId, setPlayerId] = useState<string | null>(() => {
+    // Ouverture : le profil en cours, sinon le profil relié au compte, sinon le dernier utilisé
+    // (« invité » ne vaut que pour la visite en cours).
+    const current = playerStore.currentPlayerId();
+    if (current) return current;
+    const players = playerStore.listPlayers();
+    const pick = players.find((p) => linkedUser(p.id))?.id ?? playerStore.lastPlayerId() ?? (players.length === 1 ? players[0].id : null);
+    if (pick) playerStore.setCurrentPlayer(pick);
+    return pick;
+  });
 
   useEffect(() => {
     loadLichessPuzzles()
@@ -694,6 +704,10 @@ export default function App() {
       sub={sub}
       counts={counts}
       playerName={playerName}
+      players={playerStore.listPlayers().map((pl) => ({ id: pl.id, name: pl.name, linked: !!account.session && linkedUser(pl.id) === account.session.user.id }))}
+      playerId={playerId}
+      accountEmail={account.session && !account.needMfa ? account.email : null}
+      onSelectPlayer={changePlayer}
       onProgress={(stats) => setScreen({ name: 'progress', stats })}
       onPrivacy={() => setScreen({ name: 'privacy' })}
       review={playerId && lichess ? { due: reviewDue.length, total: reviewAll.length, spaced } : null}

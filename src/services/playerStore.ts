@@ -19,6 +19,8 @@ export interface PlayerStore {
   renamePlayer(id: string, name: string): void;
   deletePlayer(id: string): void;
   currentPlayerId(): string | null;
+  /** Dernier profil sélectionné (hors « invité »), s'il existe encore. */
+  lastPlayerId(): string | null;
   setCurrentPlayer(id: string | null): void;
   history(id: string): PlayerHistory;
   addAttempt(id: string, attempt: Attempt): void;
@@ -101,6 +103,12 @@ export function createLocalPlayerStore(): PlayerStore {
 
     setCurrentPlayer(id) {
       write('current', id);
+      if (id) write('lastPlayer', id);
+    },
+
+    lastPlayerId() {
+      const id = read<string | null>('lastPlayer', null);
+      return id && players().some((p) => p.id === id) ? id : null;
     },
 
     history(id) {

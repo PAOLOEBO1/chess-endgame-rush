@@ -75,6 +75,12 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
   const [rename, setRename] = useState<string | null>(null);
   const saveRename = () => {
     if (!playerId || !rename?.trim()) return;
+    if (playerId === account.linkedPlayerId) {
+      // Profil relié : le pseudo du compte change aussi (même nom sur tous les appareils).
+      void account.renameLinked(rename).then(() => setVersion((v) => v + 1));
+      setRename(null);
+      return;
+    }
     store.renamePlayer(playerId, rename);
     setRename(null);
     setVersion((v) => v + 1);
@@ -129,10 +135,11 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
           {players.map((p) => (
             <button key={p.id} type="button" className={chip(p.id === playerId)} onClick={() => onPlayerChange(p.id)}>
               👤 {p.name}
+              {p.id === account.linkedPlayerId && ' ☁'}
             </button>
           ))}
           <button type="button" className={chip(playerId === null)} onClick={() => onPlayerChange(null)}>
-            Invité (non archivé)
+            Invité (non enregistré)
           </button>
           {players.length > 0 && !current && (
             <span className="self-center text-xs text-stone-400">Cliquez sur un profil pour le sélectionner, l’exporter ou le supprimer.</span>
@@ -233,10 +240,10 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
         </div>
         {message && <p className="text-sm text-amber-300">{message}</p>}
         <p className="text-xs text-stone-400">
-          Les profils sont enregistrés dans ce navigateur. Connectez-vous à un compte en ligne pour les retrouver sur tous vos
-          appareils, ou exportez une sauvegarde.
+          Un profil = un joueur. Il est enregistré dans ce navigateur ; connecté à un compte, le profil marqué ☁ est relié au compte
+          et se retrouve, avec le même nom et tout son historique, sur tous vos appareils.
         </p>
-        <AccountPanel account={account} playerId={playerId} playerName={current?.name ?? null} />
+        <AccountPanel account={account} playerId={playerId} playerName={current?.name ?? null} linkedName={players.find((x) => x.id === account.linkedPlayerId)?.name ?? null} onSelectPlayer={onPlayerChange} />
         <button type="button" onClick={onPrivacy} className="self-start text-xs text-sky-400 hover:underline">
           🔒 Données personnelles : ce qui est conservé et comment le supprimer
         </button>

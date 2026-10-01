@@ -12,7 +12,16 @@ const primary = 'rounded-lg bg-amber-500 px-4 py-2 font-semibold text-stone-900 
 const secondary = 'rounded-lg bg-stone-700 px-3 py-1.5 text-sm text-stone-100 hover:bg-stone-600 disabled:opacity-50';
 const link = 'text-sm text-sky-400 hover:underline';
 
-export function AccountPanel({ account, playerId, playerName }: { account: CloudAccount; playerId: string | null; playerName: string | null }) {
+interface Props {
+  account: CloudAccount;
+  playerId: string | null;
+  playerName: string | null;
+  /** Nom du profil relié au compte connecté (null : aucun sur cet appareil). */
+  linkedName: string | null;
+  onSelectPlayer: (id: string | null) => void;
+}
+
+export function AccountPanel({ account, playerId, playerName, linkedName, onSelectPlayer }: Props) {
   const [tab, setTab] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -98,8 +107,40 @@ export function AccountPanel({ account, playerId, playerName }: { account: Cloud
       <Box>
         <p className="text-sm text-stone-200">
           ☁ Connecté : <strong>{a.email}</strong>
-          {linked && playerName && <> · profil lié : <strong>{playerName}</strong></>}
+          {linked && playerName && <> · profil du compte : <strong>{playerName}</strong></>}
         </p>
+        {a.linkChoice && (
+          <div className="flex flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-stone-200">
+            <p>
+              Le profil <strong>« {a.linkChoice.name} »</strong> de cet appareil a déjà {a.linkChoice.entries} entrée(s), et le compte{' '}
+              <strong>« {a.linkChoice.pseudo} »</strong> a aussi son historique. Que faire ?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={primary} disabled={a.busy} onClick={() => a.resolveLink(false)}>
+                Récupérer le profil du compte (recommandé)
+              </button>
+              <button type="button" className={secondary} disabled={a.busy} onClick={() => a.resolveLink(true)}>
+                C’est moi aussi : fusionner « {a.linkChoice.name} » dans le compte
+              </button>
+            </div>
+            <p className="text-xs text-stone-400">
+              « Récupérer » crée sur cet appareil le profil du compte avec tout son historique ; « {a.linkChoice.name} » reste à part, sur
+              cet appareil seulement.
+            </p>
+          </div>
+        )}
+        {!a.linkChoice && !linked && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-stone-200">
+            <span className="min-w-0 flex-1">
+              {playerName ? <>Le profil « {playerName} » n’est pas celui du compte : ses parties restent sur cet appareil.</> : <>En invité, les parties ne sont pas enregistrées.</>}
+            </span>
+            {a.linkedPlayerId && linkedName && (
+              <button type="button" className={primary} onClick={() => onSelectPlayer(a.linkedPlayerId)}>
+                Revenir à « {linkedName} » ☁
+              </button>
+            )}
+          </div>
+        )}
         <p className="text-xs text-stone-400">
           {a.pending ? `${a.pending} entrée(s) en attente d’envoi. ` : 'Tout est envoyé. '}
           {a.lastSync && `Dernière synchronisation : ${new Date(a.lastSync).toLocaleTimeString('fr-FR')}.`}
@@ -257,8 +298,9 @@ export function AccountPanel({ account, playerId, playerName }: { account: Cloud
       </button>
       {tab === 'signup' && (
         <p className="text-xs text-stone-400">
-          À la connexion, le profil sélectionné et tout son historique sont envoyés sur le compte, puis retrouvés sur vos autres
-          appareils. Données conservées : email, pseudo, puzzles et parties. Aucun autre usage.
+          Première connexion : le profil sélectionné devient celui du compte et son historique y est envoyé. Sur un autre
+          appareil, la connexion y retrouve ce profil, avec son nom et tout son historique. Données conservées : email, pseudo,
+          puzzles et parties. Aucun autre usage.
         </p>
       )}
       {msg}
