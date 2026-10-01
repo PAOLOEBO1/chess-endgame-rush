@@ -16,6 +16,7 @@ import { toCp } from '../core/judge/engineJudge';
 import { fetchMySet, replaceMySet, type CoachSet } from '../services/coachSets';
 import type { Engine } from '../services/stockfish';
 import { Icon } from './Icon';
+import { CoachProgressPanel } from './CoachProgressPanel';
 
 interface Props {
   signedIn: boolean;
@@ -211,6 +212,7 @@ export function CoachBasePanel({ signedIn, onAccount, engine }: Props) {
               <input readOnly value={link} onFocus={(e) => e.target.select()} className={`${input} font-mono text-xs`} aria-label="Lien du groupe" />
             </div>
           )}
+          {set && <CoachProgressPanel items={set.items} version={set.updatedAt} />}
 
           <div className="flex flex-col gap-2">
             <button type="button" disabled={busy} onClick={() => fileInput.current?.click()} className="self-start rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600 disabled:opacity-40">

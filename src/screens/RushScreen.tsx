@@ -29,7 +29,7 @@ interface Props {
   recentlySeen?: ReadonlySet<string>;
   /** Revoir des puzzles (ids) sans chrono. */
   onReview?: (ids: string[]) => void;
-  onRunEnd?: (run: { mode: RushMode; theme: string; level: number; score: number; errors: number; bestCombo: number; highest?: number; played?: number; moves?: number; durationMs?: number }) => void;
+  onRunEnd?: (run: { mode: RushMode; theme: string; level: number; score: number; errors: number; bestCombo: number; highest?: number; played?: number; moves?: number; durationMs?: number }, failedIds: string[]) => void;
   onRestart: () => void;
   /** Pas encore au classement public : lien pour y participer (fin de partie). */
   onJoinLeaderboard?: () => void;
@@ -164,7 +164,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           : Math.max(0, Math.min(Date.now(), rush.endsAt ?? Infinity) - startedAtRef.current),
     };
     notifyParent(run);
-    if (rush.history.length > 0) onRunEnd?.(run);
+    if (rush.history.length > 0) onRunEnd?.(run, rush.history.filter((h) => !h.success).map((h) => h.puzzleId));
   }, [rush, result, scoreKey, mode, theme, startRating, onRunEnd]);
 
   const onPlayerMove = useCallback(() => {

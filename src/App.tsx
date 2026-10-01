@@ -28,7 +28,8 @@ import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
-import { cachedGroupSet, fetchGroupSet, forgetGroupSet, type CoachSet } from './services/coachSets';
+import { cachedGroupSet, declineShare, fetchGroupSet, forgetGroupSet, joinTracking, leaveTracking, membership, reportResult, shareDeclined, type CoachSet } from './services/coachSets';
+import { coachIndexOf } from './core/coachProgress';
 import { coachPuzzles } from './core/coachSet';
 import { scheduleUserDataSync, USER_DATA_EVENT } from './services/userDataSync';
 import { getSettings, setSetting } from './services/settings';
@@ -163,12 +164,15 @@ export default function App() {
   const effSub = sub === 'all' || !lichess || (counts.get(sub) ?? 0) >= CONFIG.minPuzzlesPerTheme ? sub : 'all';
   // --- Groupe d'entraîneur : ses exercices forment le thème « Entraîneur » -------
   const [coachSet, setCoachSet] = useState<CoachSet | null>(() => cachedGroupSet());
+  const [member, setMember] = useState(() => membership());
+  const [declined, setDeclined] = useState(() => !!cachedGroupSet() && shareDeclined(cachedGroupSet()!.code));
   const coachPool = useMemo(() => (coachSet ? coachPuzzles(coachSet.code, coachSet.items).map(classify) : []), [coachSet]);
   const joinGroup = useCallback(async (code: string): Promise<string | null> => {
     try {
       const set = await fetchGroupSet(code);
       if (!set) return 'Code inconnu : vérifie-le auprès de ton entraîneur.';
       setCoachSet(set);
+      setDeclined(shareDeclined(set.code));
       return null;
     } catch {
       return 'Groupe indisponible pour le moment (connexion). Réessaie plus tard.';
@@ -254,11 +258,23 @@ export default function App() {
   );
   const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, 'training', e), [onAttempt]);
   const onRunEnd = useCallback(
-    (run: Omit<Run, 't'>) => {
+    (run: Omit<Run, 't'>, failedIds: string[] = []) => {
       const id = ensurePlayer();
       if (id) playerStore.addRun(id, { t: Date.now(), ...run });
+      // Base de l'entraîneur : résultat envoyé à l'entraîneur si l'élève a accepté le suivi.
+      const member = membership();
+      if (run.theme === 'entraineur' && coachSet && member?.code === coachSet.code) {
+        reportResult({
+          mode: run.mode,
+          score: run.score,
+          errors: run.errors,
+          played: run.played ?? run.score + run.errors,
+          failed: failedIds.map((p) => coachIndexOf(p, coachSet.code)).filter((i): i is number => i !== null),
+          version: coachSet.updatedAt || null,
+        }).catch((e) => console.warn('[suivi] résultat en attente d’envoi', e));
+      }
     },
-    [ensurePlayer],
+    [ensurePlayer, coachSet],
   );
 
   const account = useCloudAccount(playerStore, playerId, changePlayer);
@@ -817,8 +833,32 @@ export default function App() {
       coachGroup={coachSet ? { name: coachSet.name, count: coachSet.items.length, updatedAt: coachSet.updatedAt, code: coachSet.code } : null}
       onJoinGroup={joinGroup}
       onLeaveGroup={() => {
+        void leaveTracking();
+        setMember(null);
         forgetGroupSet();
         setCoachSet(null);
+      }}
+      coachTracking={coachSet && member?.code === coachSet.code ? { pseudo: member.pseudo } : null}
+      shareDeclined={declined}
+      onShare={async (pseudo) => {
+        if (!coachSet) return 'Rejoins d’abord un groupe.';
+        if (member) await leaveTracking(); // ancien groupe
+        const err = await joinTracking(coachSet.code, pseudo);
+        if (!err) {
+          setMember(membership());
+          setDeclined(false);
+        }
+        return err;
+      }}
+      onDeclineShare={() => {
+        if (coachSet) declineShare(coachSet.code);
+        setDeclined(true);
+      }}
+      onStopShare={() => {
+        void leaveTracking();
+        setMember(null);
+        if (coachSet) declineShare(coachSet.code);
+        setDeclined(true);
       }}
       onAnalysis={() => setScreen({ name: 'analysis' })}
       challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}

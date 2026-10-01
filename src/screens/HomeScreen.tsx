@@ -119,6 +119,99 @@ interface Props {
   /** Rejoindre un groupe par son code ; renvoie un message d'erreur ou null. */
   onJoinGroup: (code: string) => Promise<string | null>;
   onLeaveGroup: () => void;
+  /** Suivi par l'entraîneur : pseudo sous lequel l'élève partage ses résultats (null : pas de partage). */
+  coachTracking: { pseudo: string } | null;
+  shareDeclined: boolean;
+  onShare: (pseudo: string) => Promise<string | null>;
+  onDeclineShare: () => void;
+  onStopShare: () => void;
+}
+
+function TrackingBox({
+  tracking,
+  declined,
+  onShare,
+  onDecline,
+  onStop,
+}: {
+  tracking: { pseudo: string } | null;
+  declined: boolean;
+  onShare: (pseudo: string) => Promise<string | null>;
+  onDecline: () => void;
+  onStop: () => void;
+}) {
+  const [pseudo, setPseudo] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (tracking) {
+    return (
+      <p className="mt-2 text-xs text-stone-400">
+        <Icon name="chart" className="h-3.5 w-3.5 text-emerald-300" /> Ton entraîneur suit tes résultats sur ses exercices, sous le pseudo{' '}
+        <strong className="text-stone-200">« {tracking.pseudo} »</strong>.{' '}
+        <button type="button" onClick={onStop} className="text-sky-400 hover:underline">
+          Ne plus partager (efface mes résultats)
+        </button>
+      </p>
+    );
+  }
+  if (declined && !open) {
+    return (
+      <p className="mt-2 text-xs text-stone-400">
+        Tes résultats ne sont pas partagés avec ton entraîneur.{' '}
+        <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:underline">
+          Les partager
+        </button>
+      </p>
+    );
+  }
+  return (
+    <form
+      className="mt-2 flex flex-col gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-stone-200"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError(await onShare(pseudo));
+        setBusy(false);
+      }}
+    >
+      <p>
+        <strong>Partager tes résultats avec ton entraîneur ?</strong> Il verra, sous ton pseudo seulement, tes scores sur ses exercices
+        (Storm, Streak, réussite, exercices ratés) pour t’aider à progresser. Personne d’autre ne les voit ; tu peux arrêter à tout moment.
+      </p>
+      <input
+        value={pseudo}
+        onChange={(e) => setPseudo(e.target.value)}
+        maxLength={30}
+        placeholder="Ton pseudo (ex. prénom + initiale)"
+        aria-label="Pseudo pour l’entraîneur"
+        className="rounded-lg bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500"
+      />
+      <label className="flex items-start gap-2">
+        <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+        <span>
+          J’accepte que mon entraîneur voie mes résultats, et j’ai <strong>15 ans ou plus</strong> ou un parent est d’accord.
+        </span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={busy || !consent || pseudo.trim().length < 2} className="rounded-lg bg-sky-500 px-4 py-2 font-semibold text-stone-900 hover:bg-sky-400 disabled:opacity-40">
+          {busy ? 'Envoi…' : 'Partager mes résultats'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            onDecline();
+          }}
+          className="rounded-lg px-3 py-2 text-stone-300 hover:text-stone-50"
+        >
+          Non merci
+        </button>
+      </div>
+      {error && <p className="text-red-300">{error}</p>}
+    </form>
+  );
 }
 
 function CoachGroupBox({ group, onJoin, onLeave }: { group: HomeProps['coachGroup']; onJoin: HomeProps['onJoinGroup']; onLeave: () => void }) {
@@ -375,6 +468,9 @@ export function HomeScreen(p: Props) {
               ))}
             </div>
             {p.theme === 'entraineur' && <CoachGroupBox group={p.coachGroup} onJoin={p.onJoinGroup} onLeave={p.onLeaveGroup} />}
+            {p.theme === 'entraineur' && p.coachGroup && (
+              <TrackingBox tracking={p.coachTracking} declined={p.shareDeclined} onShare={p.onShare} onDecline={p.onDeclineShare} onStop={p.onStopShare} />
+            )}
             {p.theme !== 'mix' && p.theme !== 'bases' && p.theme !== 'entraineur' && (
               <div className="mt-3 flex flex-wrap gap-2 border-l-2 border-stone-700 pl-3" aria-label="Sous-thèmes">
                 <button type="button" className={subChip(p.sub === 'all')} onClick={() => p.onSub('all')}>

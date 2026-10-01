@@ -81,3 +81,125 @@ export function forgetGroupSet(): void {
     /* rien à faire */
   }
 }
+
+// ---------------------------------------------------------------- Suivi des élèves (migration 0009)
+
+export interface Membership {
+  code: string;
+  memberId: string;
+  secret: string;
+  pseudo: string;
+}
+
+const MEMBER = 'endgameRush:v1:coachMember';
+const DECLINED = 'endgameRush:v1:coachShareDeclined';
+const PENDING = 'endgameRush:v1:coachPending';
+
+const readJson = <T,>(key: string, fallback: T): T => {
+  try {
+    return (JSON.parse(window.localStorage.getItem(key) ?? 'null') as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writeJson = (key: string, value: unknown) => {
+  try {
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* sans stockage */
+  }
+};
+
+export const membership = (): Membership | null => readJson<Membership | null>(MEMBER, null);
+/** L'élève a choisi de jouer sans partager ses résultats (pour ce groupe). */
+export const shareDeclined = (code: string): boolean => readJson<string | null>(DECLINED, null) === code;
+export const declineShare = (code: string | null) => writeJson(DECLINED, code);
+
+function newSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Rejoindre le suivi du groupe sous un pseudo (consentement donné). Renvoie un message d'erreur, ou null. */
+export async function joinTracking(code: string, pseudo: string): Promise<string | null> {
+  const clean = pseudo.trim();
+  if (!/^[\p{L}\p{N} _.-]{2,30}$/u.test(clean)) return 'Pseudo : 2 à 30 caractères (lettres, chiffres, espace, _ . -).';
+  const secret = newSecret();
+  try {
+    const { data, error } = await (await cloud()).rpc('coach_join', { p_code: code, p_pseudo: clean, p_secret: secret });
+    if (error?.code === '23505') return 'Ce pseudo est déjà pris dans le groupe : choisis-en un autre.';
+    if (error?.code === 'P0001') return 'Le groupe est complet (200 élèves).';
+    if (error) throw error;
+    writeJson(MEMBER, { code, memberId: String(data), secret, pseudo: clean } satisfies Membership);
+    declineShare(null);
+    return null;
+  } catch {
+    return 'Inscription impossible pour le moment (connexion). Réessaie plus tard.';
+  }
+}
+
+/** Ne plus partager : l'élève est retiré du suivi et ses résultats sont supprimés. */
+export async function leaveTracking(): Promise<void> {
+  const m = membership();
+  writeJson(MEMBER, null);
+  writeJson(PENDING, null);
+  if (!m) return;
+  try {
+    await (await cloud()).rpc('coach_leave', { p_member: m.memberId, p_secret: m.secret });
+  } catch {
+    /* hors ligne : l'entraîneur peut aussi retirer l'élève ; effacement automatique après un an */
+  }
+}
+
+export interface ReportEntry {
+  mode: 'storm' | 'streak';
+  score: number;
+  errors: number;
+  played: number;
+  failed: number[];
+  version: string | null;
+}
+
+/** Envoie le résultat d'une partie (et ceux restés en attente faute de connexion). */
+export async function reportResult(entry: ReportEntry): Promise<void> {
+  const m = membership();
+  if (!m) return;
+  const queue = [...readJson<ReportEntry[]>(PENDING, []), entry].slice(-50);
+  writeJson(PENDING, queue);
+  const c = await cloud();
+  while (queue.length) {
+    const e = queue[0];
+    const { error } = await c.rpc('coach_report', {
+      p_member: m.memberId,
+      p_secret: m.secret,
+      p_mode: e.mode,
+      p_score: e.score,
+      p_errors: e.errors,
+      p_played: e.played,
+      p_failed: e.failed.slice(0, 100),
+      p_version: e.version || null,
+    });
+    if (error?.code === 'P0002') {
+      // Retiré du groupe par l'entraîneur : on arrête le partage.
+      writeJson(MEMBER, null);
+      writeJson(PENDING, null);
+      return;
+    }
+    if (error) throw error;
+    queue.shift();
+    writeJson(PENDING, queue);
+  }
+}
+
+/** Entraîneur : ses élèves et leurs résultats. */
+export async function fetchProgress(): Promise<import('../core/coachProgress').MemberProgress[]> {
+  const { data, error } = await (await cloud()).rpc('coach_progress');
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function removeStudent(memberId: string): Promise<void> {
+  const { error } = await (await cloud()).rpc('coach_remove_member', { p_member: memberId });
+  if (error) throw error;
+}
