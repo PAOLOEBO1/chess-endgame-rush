@@ -36,7 +36,7 @@ import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' };
 
 const embed = readEmbedOptions();
 
@@ -47,6 +47,7 @@ const loadLeaderboard = () => import('./screens/LeaderboardScreen');
 const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ default: m.CoachScreen })));
 const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
 const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
+const HelpScreen = lazy(() => import('./screens/HelpScreen').then((m) => ({ default: m.HelpScreen })));
 const AnalysisScreen = lazy(() => import('./screens/AnalysisScreen').then((m) => ({ default: m.AnalysisScreen })));
 const ExamScreen = lazy(() => import('./screens/ExamScreen').then((m) => ({ default: m.ExamScreen })));
 const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
@@ -566,6 +567,26 @@ export default function App() {
     );
   }
 
+  if (screen.name === 'help') {
+    return shell(
+      <HelpScreen
+        onHome={() => setScreen({ name: 'home' })}
+        onGo={(target) => {
+          if (target.kind === 'mode') {
+            setMode(target.mode);
+            setScreen({ name: 'home' });
+          } else if (target.kind === 'training') {
+            setSetting('trainingTab', target.tab);
+            setMode('training');
+            setScreen({ name: 'home' });
+          } else if (target.screen === 'stats' || target.screen === 'progress') {
+            setScreen({ name: 'progress', stats: target.screen === 'stats' });
+          } else setScreen(target.screen === 'coach' ? { name: 'coach' } : { name: 'leaderboard' });
+        }}
+      />,
+    );
+  }
+
   if (screen.name === 'analysis') {
     const back = screen.back;
     return shell(
@@ -798,7 +819,15 @@ export default function App() {
 
   return shell(
     <>
-    {welcome && <WelcomeDialog onClose={closeWelcome} />}
+    {welcome && (
+      <WelcomeDialog
+        onClose={closeWelcome}
+        onGuide={() => {
+          closeWelcome();
+          setScreen({ name: 'help' });
+        }}
+      />
+    )}
     <HomeScreen
       compact={embed.embed}
       mode={mode}
@@ -812,6 +841,7 @@ export default function App() {
       onSelectPlayer={changePlayer}
       onProgress={(stats) => setScreen({ name: 'progress', stats })}
       onPrivacy={() => setScreen({ name: 'privacy' })}
+      onHelp={() => setScreen({ name: 'help' })}
       review={playerId && lichess ? { due: reviewDue.length, total: reviewAll.length, spaced } : null}
       onReview={() => startReview(reviewDue.map((i) => i.id))}
       onSpaced={(v) => {

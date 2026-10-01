@@ -38,6 +38,7 @@ const ICONS = {
   code: [{ d: 'M8 7l-5 5 5 5M16 7l5 5-5 5' }],
   cloud: [{ d: 'M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z' }],
   search: [{ circle: [11, 11, 6] }, { d: 'M20 20l-4.5-4.5' }],
+  help: [{ circle: [12, 12, 9] }, { d: 'M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.8' }, { circle: [12, 17, 1.1], fill: true }],
 } satisfies Record<string, Shape[]>;
 
 export type IconName = keyof typeof ICONS;

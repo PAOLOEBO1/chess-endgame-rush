@@ -65,6 +65,8 @@ interface Props {
   /** Classement public (absent si les comptes en ligne ne sont pas configurés). */
   onLeaderboard?: () => void;
   onPrivacy: () => void;
+  /** Guide de l'application. */
+  onHelp: () => void;
   /** Révision des erreurs (joueur sélectionné) : à revoir maintenant / en cours / mode. */
   review: { due: number; total: number; spaced: boolean } | null;
   onReview: () => void;
@@ -336,6 +338,15 @@ export function HomeScreen(p: Props) {
           aria-label="Ma progression"
         >
           <Icon name="chart" className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={p.onHelp}
+          className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
+          title="Guide de l’application"
+          aria-label="Guide de l’application"
+        >
+          <Icon name="help" className="h-5 w-5" />
         </button>
         <ProfileMenu players={p.players} playerId={p.playerId} accountEmail={p.accountEmail} onSelect={p.onSelectPlayer} onManage={() => p.onProgress(false)} />
         <button

@@ -23,7 +23,7 @@ const STEPS = [
   },
 ];
 
-export function WelcomeDialog({ onClose }: { onClose: () => void }) {
+export function WelcomeDialog({ onClose, onGuide }: { onClose: () => void; onGuide?: () => void }) {
   const [step, setStep] = useState(0);
   const first = useRef<HTMLButtonElement>(null);
   const s = STEPS[step];
@@ -56,6 +56,11 @@ export function WelcomeDialog({ onClose }: { onClose: () => void }) {
             ))}
           </div>
           <div className="flex gap-2">
+            {last && onGuide && (
+              <button type="button" onClick={onGuide} className="rounded-lg px-3 py-2 text-sm text-sky-300 hover:text-sky-200">
+                Voir le guide
+              </button>
+            )}
             {!last && (
               <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-stone-300 hover:text-stone-100">
                 Passer
