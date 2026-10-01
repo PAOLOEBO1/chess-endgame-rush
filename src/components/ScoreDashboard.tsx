@@ -3,6 +3,7 @@
 // meilleur essai de chaque jour. En plus de Lichess : filtre par type de
 // finale et vue « toutes les sessions ». Chaque partie est isolée, sans cumul.
 
+import { motifLabel } from '../core/motifs';
 import { useMemo, useState, type ReactNode } from 'react';
 import { categoryInfo, dailyBest, periodRecords, recentRuns, runAccuracy } from '../core/stats';
 import { THEMES } from '../screens/HomeScreen';
@@ -22,9 +23,11 @@ const fmtTime = (r: Run) => (r.durationMs === undefined ? '–' : `${Math.round(
 const dash = (v: number | undefined) => (v === undefined ? '–' : v.toLocaleString('fr-FR'));
 
 export function themeLabel(themeKey: string): string {
-  const [family, sub] = themeKey.split('/');
+  const [base, motif] = themeKey.split('.');
+  const [family, sub] = base.split('/');
   const fam = THEMES.find((t) => t.id === family)?.label ?? family;
-  return sub ? `${fam} · ${categoryInfo(sub, family).label}` : fam;
+  const label = sub ? `${fam} · ${categoryInfo(sub, family).label}` : fam;
+  return motif ? `${label} · ${motifLabel(motif)}` : label;
 }
 
 const MODE_INFO = {

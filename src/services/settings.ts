@@ -12,6 +12,8 @@ interface Settings {
   lastMode: string | null;
   lastTheme: string | null;
   lastSub: string | null;
+  /** Motif choisi (thème tactique), null = tous. */
+  lastMotif: string | null;
   lastStart: number | null;
   /** Couleurs de l'échiquier. */
   boardTheme: BoardTheme;
@@ -43,7 +45,7 @@ export function applyBoardTheme(theme: BoardTheme): void {
   else document.documentElement.setAttribute('data-board', theme);
 }
 
-const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastStart: null, boardTheme: 'brown', trainingTab: 'bases', welcomed: false, exams: {}, seriesLibrary: [] };
+const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastMotif: null, lastStart: null, boardTheme: 'brown', trainingTab: 'bases', welcomed: false, exams: {}, seriesLibrary: [] };
 
 export function getSettings(): Settings {
   try {

@@ -118,3 +118,15 @@ test('le joueur maté : échec, sauf en défense de « l’autre camp » où il 
     assert.equal(s2.endReason, resist ? 'resisted' : 'mated');
   }
 });
+
+test('premier mauvais coup gardé après une reprise, effacé par « Recommencer »', () => {
+  const s0 = initialSession(puzzle('8/8/8/4k3/8/8/8/3QK3 w - - 0 1', 'win'), RULES);
+  assert.equal(s0.firstWrong, null);
+  const bad = (san: string, uci: string): Verdict => ({ kind: 'bad', san, reason: 'throws-win', outcome: 'draw', bestMoves: ['Qd7'], bestUci: [uci] });
+  const f1 = play(s0, 'd1', 'd6', bad('Qd6+', 'd1d7'));
+  assert.equal(f1.firstWrong, 'd1d6');
+  const back = sessionReducer(f1, { type: 'TAKEBACK' });
+  const f2 = play(back, 'd1', 'd5', bad('Qd5+', 'd1d7'));
+  assert.equal(f2.firstWrong, 'd1d6');
+  assert.equal(sessionReducer(f2, { type: 'RESET' }).firstWrong, null);
+});

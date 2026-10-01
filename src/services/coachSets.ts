@@ -5,6 +5,7 @@
 
 import { newCoachCode, sanitizeCoachItems, COACH_CODE, type CoachItem } from '../core/coachSet';
 import { getCloud } from './cloud';
+import { sanitizeDetail } from '../core/coachProgress';
 
 export interface CoachSet {
   code: string;
@@ -159,6 +160,8 @@ export interface ReportEntry {
   played: number;
   failed: number[];
   version: string | null;
+  /** Détail par exercice (temps, 1er mauvais coup, type d'erreur). */
+  detail?: import('../core/coachProgress').CoachDetail[];
 }
 
 /** Envoie le résultat d'une partie (et ceux restés en attente faute de connexion). */
@@ -179,6 +182,7 @@ export async function reportResult(entry: ReportEntry): Promise<void> {
       p_played: e.played,
       p_failed: e.failed.slice(0, 100),
       p_version: e.version || null,
+      p_detail: e.detail?.length ? e.detail : null,
     });
     if (error?.code === 'P0002') {
       // Retiré du groupe par l'entraîneur : on arrête le partage.
@@ -196,7 +200,11 @@ export async function reportResult(entry: ReportEntry): Promise<void> {
 export async function fetchProgress(): Promise<import('../core/coachProgress').MemberProgress[]> {
   const { data, error } = await (await cloud()).rpc('coach_progress');
   if (error) throw error;
-  return Array.isArray(data) ? data : [];
+  if (!Array.isArray(data)) return [];
+  return (data as import('../core/coachProgress').MemberProgress[]).map((m) => ({
+    ...m,
+    results: (Array.isArray(m.results) ? m.results : []).map((r) => ({ ...r, d: sanitizeDetail(r.d) })),
+  }));
 }
 
 export async function removeStudent(memberId: string): Promise<void> {

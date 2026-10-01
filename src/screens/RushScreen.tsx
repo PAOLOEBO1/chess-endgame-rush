@@ -2,6 +2,7 @@
 // temps sont dans core/rush/rushRules.ts ; ici, uniquement l'orchestration.
 
 import type { ErrorType } from '../core/errorTypes';
+import type { PlayedExercise, SolveInfo } from '../core/history';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PuzzleRunner, type PuzzleEnd } from '../components/PuzzleRunner';
 import { CONFIG } from '../core/config';
@@ -23,13 +24,13 @@ interface Props {
   scoreKey: string;
   judge: MoveJudge;
   /** Archivage (profil joueur) : un puzzle terminé. */
-  onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType) => void;
+  onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType, info?: SolveInfo) => void;
   /** Archivage : une partie terminée. */
   /** Puzzles joués lors des parties récentes : évités tant qu'il reste du choix. */
   recentlySeen?: ReadonlySet<string>;
   /** Revoir des puzzles (ids) sans chrono. */
   onReview?: (ids: string[]) => void;
-  onRunEnd?: (run: { mode: RushMode; theme: string; level: number; score: number; errors: number; bestCombo: number; highest?: number; played?: number; moves?: number; durationMs?: number }, failedIds: string[]) => void;
+  onRunEnd?: (run: { mode: RushMode; theme: string; level: number; score: number; errors: number; bestCombo: number; highest?: number; played?: number; moves?: number; durationMs?: number }, played: PlayedExercise[]) => void;
   onRestart: () => void;
   /** Pas encore au classement public : lien pour y participer (fin de partie). */
   onJoinLeaderboard?: () => void;
@@ -69,6 +70,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
   const rushRef = useRef(rush);
   rushRef.current = rush;
   const movesRef = useRef(0); // coups joués (précision façon Lichess)
+  const playedRef = useRef<PlayedExercise[]>([]); // détail de chaque exercice (temps, 1er mauvais coup)
   // Moteur Stockfish indisponible (vieux téléphone, mémoire) : on continue avec
   // les seules finales de 7 pièces au plus, jugées par la table de finales.
   const [engineDown, setEngineDown] = useState(false);
@@ -164,7 +166,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           : Math.max(0, Math.min(Date.now(), rush.endsAt ?? Infinity) - startedAtRef.current),
     };
     notifyParent(run);
-    if (rush.history.length > 0) onRunEnd?.(run, rush.history.filter((h) => !h.success).map((h) => h.puzzleId));
+    if (rush.history.length > 0) onRunEnd?.(run, playedRef.current);
   }, [rush, result, scoreKey, mode, theme, startRating, onRunEnd]);
 
   const onPlayerMove = useCallback(() => {
@@ -178,7 +180,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
   }, []);
 
   const onEnd = useCallback(
-    async (end: PuzzleEnd, error?: ErrorType) => {
+    async (end: PuzzleEnd, error?: ErrorType, info?: SolveInfo) => {
       const state = rushRef.current;
       if (state.status === 'over' || !current) return;
       let next = state;
@@ -186,7 +188,10 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
         const entry = { puzzleId: current.id, rating: current.rating, success: end === 'solved', gameUrl: current.gameUrl, title: current.title };
         next = rushReducer(state, { type: end === 'solved' ? 'SOLVED' : 'FAILED', now: Date.now(), entry });
         setRush(next);
-        if (next.history.length > state.history.length) onAttempt?.(current, end === 'solved', error);
+        if (next.history.length > state.history.length) {
+          onAttempt?.(current, end === 'solved', error, info);
+          playedRef.current.push({ id: current.id, ok: end === 'solved', ...(error ? { e: error } : {}), ...info });
+        }
         if (next.status === 'over') return;
       }
       await sleep(end === 'solved' ? CONFIG.modes.rushPauseAfterSuccessMs : CONFIG.modes.rushPauseAfterFailureMs);

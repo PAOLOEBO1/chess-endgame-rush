@@ -9,6 +9,9 @@ import { errorTypeOf, type ErrorType } from '../core/errorTypes';
 import { materialSymbols } from '../core/material';
 import type { Puzzle } from '../core/types';
 import { usePuzzlePlayer } from '../hooks/usePuzzlePlayer';
+import { useSolveClock } from '../hooks/useSolveClock';
+import { SolveClock } from '../components/hud/SolveClock';
+import type { SolveInfo } from '../core/history';
 import type { MoveJudge } from '../services/moveJudge';
 
 const TONE_CLASS: Record<Tone, string> = {
@@ -23,7 +26,7 @@ interface Props {
   puzzle: Puzzle;
   position: { index: number; total: number };
   judge: MoveJudge;
-  onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType) => void;
+  onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType, info?: SolveInfo) => void;
   onNext: () => void;
   onHome: () => void;
   /** Règles du puzzle (par défaut : entraînement jusqu'au bout). */
@@ -44,6 +47,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
   const { state, timings, playMove, reset, takeBack } = usePuzzlePlayer(puzzle, rules, judge);
   const flash = useBoardFlash(state.phase, state.verdict?.kind);
   const feedback = feedbackFor(state);
+  const clock = useSolveClock(state.phase === 'awaitingPlayer');
 
   // Indices progressifs : 1 = plan (idée clé), 2 = pièce à jouer, 3 = coup.
   // Une réussite avec indice ne valide pas la position (comptée comme à retravailler).
@@ -75,14 +79,18 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
   useEffect(() => {
     if (state.phase === 'awaitingPlayer' && state.moves.length === 0) {
       archived.current = false;
-      if (state.takebacks === 0) hintsUsed.current = 0;
+      if (state.takebacks === 0) {
+        hintsUsed.current = 0;
+        clock.restart();
+      }
     }
     if (!archived.current && (state.phase === 'solved' || state.phase === 'failed')) {
       archived.current = true;
       const solved = state.phase === 'solved';
       const error = errorTypeOf({ success: solved, hintUsed: hintsUsed.current > 0, endReason: state.endReason, verdict: state.verdict, fen: state.fen });
-      onAttempt?.(puzzle, solved && hintsUsed.current === 0, error);
+      onAttempt?.(puzzle, solved && hintsUsed.current === 0, error, { ms: clock.read(), ...(state.firstWrong ? { w: state.firstWrong } : {}) });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chrono lu au moment de l'issue
   }, [state.phase, state.moves.length, state.takebacks, puzzle, onAttempt]);
   const playerIsWhite = state.playerColor === 'w';
   const turnIsWhite = state.fen.split(' ')[1] === 'w';
@@ -137,8 +145,11 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           <button type="button" onClick={onHome} className="hover:text-stone-100">
             {backLabel}
           </button>
-          <span>
-            {position.index + 1} / {position.total}
+          <span className="flex items-center gap-3">
+            <SolveClock ms={clock.read()} running={state.phase === 'awaitingPlayer'} />
+            <span>
+              {position.index + 1} / {position.total}
+            </span>
           </span>
         </div>
 

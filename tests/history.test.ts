@@ -33,3 +33,17 @@ test('conversion ligne ↔ entrée : aller-retour sans perte', () => {
   assert.equal(runToRow({ ...R, moves: undefined }, 'u').moves, null);
   assert.equal(runToRow(R, 'u').best_combo, 14);
 });
+
+test('historique : temps de réflexion et premier mauvais coup validés', async () => {
+  const { sanitizeHistory, attemptToRow, rowToAttempt, cleanSolveInfo } = await import('../src/core/history');
+  const base = { t: 1_790_000_000_000, m: 'storm', p: 'p1', r: 1500, c: 'c', f: 'f', ok: false };
+  const { history, rejected } = sanitizeHistory({ attempts: [{ ...base, ms: 4200, w: 'e7e8q' }, { ...base, t: base.t + 1, ms: -1 }, { ...base, t: base.t + 2, w: 'x' }], runs: [] });
+  assert.equal(rejected, 2);
+  assert.deepEqual(history.attempts, [{ ...base, ms: 4200, w: 'e7e8q' }]);
+  const row = attemptToRow(history.attempts[0] as never, 'u');
+  assert.equal(row.ms, 4200);
+  assert.equal(row.w, 'e7e8q');
+  assert.deepEqual(rowToAttempt({ ...base, ms: null, w: null } as never), base);
+  assert.deepEqual(cleanSolveInfo({ ms: 1e9, w: 'zz' }), { ms: 3_600_000 });
+  assert.deepEqual(cleanSolveInfo(undefined), {});
+});

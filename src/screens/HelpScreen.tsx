@@ -27,7 +27,8 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         points: [
           '3 minutes pour résoudre un maximum de finales tirées de parties réelles.',
           'Chaque réussite ajoute du temps et fait monter la difficulté ; une erreur en retire.',
-          'Choisis un thème (pions, tours, dames…) et, si tu veux, un niveau de départ.',
+          'Choisis un thème (pions, tours, dames…), un motif si tu veux (zugzwang, pion avancé, coup calme…) et un niveau de départ.',
+          'Un chrono par exercice mesure ton temps de réflexion : il est enregistré avec chaque tentative.',
         ],
         go: { label: 'Lancer un Storm', target: { kind: 'mode', mode: 'storm' } },
       },
@@ -132,8 +133,9 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         who: 'Entraîneur (compte nécessaire)',
         points: [
           'Importe tes exercices en PGN : tes élèves les jouent en Storm et en Streak (thème « Entraîneur »), du plus facile au plus difficile.',
+          'En-tête [Theme "Opposition"] : tes élèves peuvent travailler un motif précis.',
           'Partage par un code ou un lien ; chaque import remplace la base.',
-          'Suivi des élèves qui l’acceptent (pseudo) : scores, réussite, tendance, exercices les plus ratés.',
+          'Suivi des élèves qui l’acceptent (pseudo) : scores, réussite, temps médian, tendance, exercices les plus ratés et l’erreur la plus fréquente.',
         ],
         go: { label: 'Espace entraîneur', target: { kind: 'screen', screen: 'coach' } },
       },

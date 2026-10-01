@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 
 const CONTACT = import.meta.env.VITE_CONTACT_EMAIL || '';
 export const SOURCE_URL = import.meta.env.VITE_SOURCE_URL || '';
-const UPDATED = '1er octobre 2026';
+const UPDATED = '2 octobre 2026';
 
 export function PrivacyScreen({ onHome }: { onHome: () => void }) {
   return (
@@ -59,12 +59,12 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
           <li>votre <strong>adresse email</strong> (connexion, confirmation, mot de passe oublié) ;</li>
           <li>votre <strong>mot de passe</strong>, jamais stocké en clair (seule une empreinte chiffrée est conservée) ;</li>
           <li>votre <strong>pseudo</strong> ;</li>
-          <li>votre <strong>historique d’entraînement</strong> : exercices tentés, réussite, type d’erreur, difficulté, scores Storm et Streak ;</li>
+          <li>votre <strong>historique d’entraînement</strong> : exercices tentés, réussite, type d’erreur, temps de réflexion, premier mauvais coup, difficulté, scores Storm et Streak ;</li>
           <li>vos <strong>tests de maîtrise</strong> des Bases et votre <strong>bibliothèque de séries</strong> d’entraîneur (positions et noms que vous avez saisis) ;</li>
-          <li>entraîneurs : la <strong>base d’exercices</strong> que vous importez (positions, coups, titres), lisible par toute personne qui a le code du groupe ;</li>
+          <li>entraîneurs : la <strong>base d’exercices</strong> que vous importez (positions, coups, titres, thèmes), lisible par toute personne qui a le code du groupe ;</li>
           <li>
             élèves d’un groupe, <strong>seulement s’ils l’acceptent</strong> (case à cocher ; moins de 15 ans : accord d’un parent) : un
-            <strong> pseudo</strong> et les résultats de leurs parties sur les exercices de l’entraîneur (score, erreurs, exercices ratés),
+            <strong> pseudo</strong> et les résultats de leurs parties sur les exercices de l’entraîneur (score, erreurs, et pour chaque exercice : réussite, temps de réflexion, premier mauvais coup, type d’erreur),
             visibles par <strong>cet entraîneur seulement</strong>, sans compte ni email. « Ne plus partager » ou le retrait par
             l’entraîneur les efface ; ils sont effacés automatiquement après un an sans partie ;
           </li>

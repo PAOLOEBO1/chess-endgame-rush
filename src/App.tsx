@@ -6,6 +6,7 @@ import { applyUci } from './core/chessRules';
 import { dueNow, maintenanceDue, reviewItems } from './core/review';
 import { recordExam } from './core/exam';
 import type { ErrorType } from './core/errorTypes';
+import { cleanSolveInfo, type PlayedExercise, type SolveInfo } from './core/history';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
 import { decodeSeries, type Series } from './core/series';
@@ -29,8 +30,9 @@ import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
 import { cachedGroupSet, declineShare, fetchGroupSet, forgetGroupSet, joinTracking, leaveTracking, membership, reportResult, shareDeclined, type CoachSet } from './services/coachSets';
-import { coachIndexOf } from './core/coachProgress';
+import { coachDetail, coachIndexOf } from './core/coachProgress';
 import { coachPuzzles } from './core/coachSet';
+import { hasMotif, motifChoices } from './core/motifs';
 import { scheduleUserDataSync, USER_DATA_EVENT } from './services/userDataSync';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
@@ -125,14 +127,16 @@ export default function App() {
   const [mode, setMode] = useState<HomeMode>(embed.mode ?? ((saved.lastMode as HomeMode | null) ?? 'storm'));
   const [theme, setTheme] = useState<ThemeChoice>((embed.theme as ThemeChoice) ?? ((saved.lastTheme as ThemeChoice | null) ?? 'mix'));
   const [sub, setSub] = useState<string>(embed.sub ?? saved.lastSub ?? 'all');
+  const [motif, setMotif] = useState<string>(saved.lastMotif ?? 'all');
   // Niveau de départ facultatif : null = automatique (exercices les plus faciles du thème, puis ça monte).
   const [startRating, setStartRating] = useState<number | null>(embed.level ?? saved.lastStart);
   useEffect(() => {
     setSetting('lastMode', mode);
     setSetting('lastTheme', theme);
     setSetting('lastSub', sub);
+    setSetting('lastMotif', motif === 'all' ? null : motif);
     setSetting('lastStart', startRating);
-  }, [mode, theme, sub, startRating]);
+  }, [mode, theme, sub, motif, startRating]);
   const [lichess, setLichess] = useState<Puzzle[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() => {
@@ -196,11 +200,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- une fois à l'ouverture
   }, []);
 
-  const pool = useMemo(
+  const basePool = useMemo(
     () => (theme === 'entraineur' ? coachPool : lichess ? buildPool(theme, effSub, lichess) : null),
     [theme, effSub, lichess, coachPool],
   );
-  const themeKey = effSub === 'all' ? theme : `${theme}/${effSub}`;
+  // Motif (thème tactique) facultatif : ignoré s'il n'est plus disponible pour ce choix.
+  const motifs = useMemo(() => (basePool ? motifChoices(basePool, theme === 'entraineur') : []), [basePool, theme]);
+  const effMotif = motif !== 'all' && motifs.some((m) => m.id === motif) ? motif : 'all';
+  const pool = useMemo(() => (basePool && effMotif !== 'all' ? basePool.filter((p) => hasMotif(p, effMotif)) : basePool), [basePool, effMotif]);
+  const themeKey = (effSub === 'all' ? theme : `${theme}/${effSub}`) + (effMotif === 'all' ? '' : `.${effMotif}`);
   const autoStart = useMemo(() => {
     if (!pool?.length) return CONFIG.startLevels[0].rating;
     const min = pool.reduce((m, p) => Math.min(m, p.rating), Infinity);
@@ -236,7 +244,7 @@ export default function App() {
   }, [changePlayer]);
 
   const onAttempt = useCallback(
-    (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily' | 'challenge', e?: ErrorType) => {
+    (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily' | 'challenge', e?: ErrorType, solve?: SolveInfo) => {
       const playerId = ensurePlayer();
       if (!playerId) return;
       playerStore.addAttempt(playerId, {
@@ -248,29 +256,34 @@ export default function App() {
         f: puzzle.family ?? familyOf(puzzle.fen),
         ok: success,
         ...(e ? { e } : {}),
+        ...cleanSolveInfo(solve),
       });
     },
     [ensurePlayer],
   );
   // Exercices d'entraîneur : Elo seulement estimé, donc hors Elo personnel et classement Elo (comptés comme entraînement).
   const onRushAttempt = useCallback(
-    (p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, p.collection === 'coach' ? 'training' : mode === 'streak' ? 'streak' : 'storm', e),
+    (p: Puzzle, ok: boolean, e?: ErrorType, s?: SolveInfo) => onAttempt(p, ok, p.collection === 'coach' ? 'training' : mode === 'streak' ? 'streak' : 'storm', e, s),
     [onAttempt, mode],
   );
-  const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, 'training', e), [onAttempt]);
+  const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType, s?: SolveInfo) => onAttempt(p, ok, 'training', e, s), [onAttempt]);
   const onRunEnd = useCallback(
-    (run: Omit<Run, 't'>, failedIds: string[] = []) => {
+    (run: Omit<Run, 't'>, played: PlayedExercise[] = []) => {
       const id = ensurePlayer();
       if (id) playerStore.addRun(id, { t: Date.now(), ...run });
       // Base de l'entraîneur : résultat envoyé à l'entraîneur si l'élève a accepté le suivi.
       const member = membership();
-      if (run.theme === 'entraineur' && coachSet && member?.code === coachSet.code) {
+      if (run.theme.split('.')[0] === 'entraineur' && coachSet && member?.code === coachSet.code) {
         reportResult({
           mode: run.mode,
           score: run.score,
           errors: run.errors,
           played: run.played ?? run.score + run.errors,
-          failed: failedIds.map((p) => coachIndexOf(p, coachSet.code)).filter((i): i is number => i !== null),
+          failed: played
+            .filter((x) => !x.ok)
+            .map((x) => coachIndexOf(x.id, coachSet.code))
+            .filter((i): i is number => i !== null),
+          detail: coachDetail(played, coachSet.code),
           version: coachSet.updatedAt || null,
         }).catch((e) => console.warn('[suivi] résultat en attente d’envoi', e));
       }
@@ -322,20 +335,20 @@ export default function App() {
   }, [playerId, lichess, screen]);
   const challengeRecorded = useRef(new Set<string>());
   const onChallengeAttempt = useCallback(
-    (p: Puzzle, ok: boolean, e?: ErrorType) => {
+    (p: Puzzle, ok: boolean, e?: ErrorType, s?: SolveInfo) => {
       if (challenge.results.has(p.id) || challengeRecorded.current.has(p.id)) return;
       challengeRecorded.current.add(p.id);
-      onAttempt(p, ok, 'challenge', e);
+      onAttempt(p, ok, 'challenge', e, s);
     },
     [challenge, onAttempt],
   );
   const dailyRecorded = useRef(false);
   const onDailyAttempt = useCallback(
-    (p: Puzzle, ok: boolean, e?: ErrorType) => {
+    (p: Puzzle, ok: boolean, e?: ErrorType, s?: SolveInfo) => {
       // Seule la première tentative du jour compte.
       if (dailyRecorded.current || motivation.dailyResult !== null) return;
       dailyRecorded.current = true;
-      onAttempt(p, ok, 'daily', e);
+      onAttempt(p, ok, 'daily', e, s);
     },
     [onAttempt, motivation.dailyResult],
   );
@@ -396,10 +409,10 @@ export default function App() {
     if (list.length) setScreen({ name: 'review', ids: list, index: 0 });
   }, [spaced]);
   const onReviewAttempt = useCallback(
-    (p: Puzzle, ok: boolean, e?: ErrorType) => {
+    (p: Puzzle, ok: boolean, e?: ErrorType, s?: SolveInfo) => {
       if (reviewed.current.has(p.id)) return;
       reviewed.current.add(p.id);
-      onAttempt(p, ok, 'review', e);
+      onAttempt(p, ok, 'review', e, s);
     },
     [onAttempt],
   );
@@ -527,10 +540,11 @@ export default function App() {
         playerId={playerId}
         onPlayerChange={changePlayer}
         onHome={() => setScreen({ name: 'home' })}
-        onTrain={(family, subcategory, m = 'storm') => {
+        onTrain={(family, subcategory, m = 'storm', mot = 'all') => {
           setMode(m);
           setTheme(family as ThemeChoice);
           setSub(subcategory);
+          setMotif(mot);
           setScreen({ name: 'rush', run: Date.now() });
         }}
       />,
@@ -617,10 +631,10 @@ export default function App() {
           exam
           backLabel="← Abandonner le test"
           header={`🎓 Test de maîtrise — ${g.label} · ${i + 1}/${g.ids.length}`}
-          onAttempt={(p, ok, e) => {
+          onAttempt={(p, ok, e, sv) => {
             if (examResults[i] !== null) return;
             setExamResults((r) => r.map((x, j) => (j === i ? ok : x)));
-            onTrainingAttempt(p, ok, e);
+            onTrainingAttempt(p, ok, e, sv);
           }}
           onHome={() => setScreen({ name: 'home' })}
           onNext={() => (last ? finishExam(g.id, examResults) : setScreen({ name: 'exam', group: g.id, index: i + 1 }))}
@@ -683,10 +697,10 @@ export default function App() {
         onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         backLabel="← La série"
         header={`🧑‍🏫 ${SERIES!.name} — seule ta 1re tentative compte`}
-        onAttempt={(p, ok, e) => {
+        onAttempt={(p, ok, e, sv) => {
           if (seriesResults[i] !== null) return;
           setSeriesResults((r) => r.map((x, j) => (j === i ? ok : x)));
-          onTrainingAttempt(p, ok, e);
+          onTrainingAttempt(p, ok, e, sv);
         }}
         onHome={() => setScreen({ name: 'series' })}
         onNext={() => setScreen({ name: 'series' })}
@@ -834,6 +848,9 @@ export default function App() {
       theme={theme}
       sub={sub}
       counts={counts}
+      motifs={motifs}
+      motif={effMotif}
+      onMotif={setMotif}
       playerName={playerName}
       players={playerStore.listPlayers().map((pl) => ({ id: pl.id, name: pl.name, linked: !!account.session && linkedUser(pl.id) === account.session.user.id }))}
       playerId={playerId}

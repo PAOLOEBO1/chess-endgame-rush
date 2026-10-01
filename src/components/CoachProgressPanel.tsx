@@ -1,7 +1,8 @@
 // Entraîneur : suivi des élèves de son groupe (résultats de Storm / Streak sur sa base).
 
 import { useCallback, useEffect, useState } from 'react';
-import { hardestExercises, studentRows, type MemberProgress } from '../core/coachProgress';
+import { exerciseStats, hardestExercises, studentRows, type MemberProgress } from '../core/coachProgress';
+import { formatClock } from '../hooks/useSolveClock';
 import type { CoachItem } from '../core/coachSet';
 import { fetchProgress, removeStudent } from '../services/coachSets';
 import { Icon } from './Icon';
@@ -43,6 +44,7 @@ export function CoachProgressPanel({ items, version }: Props) {
 
   const rows = members ? studentRows(members) : [];
   const hard = members ? hardestExercises(members, version) : [];
+  const stats = members ? exerciseStats(members, version) : new Map();
 
   return (
     <section className="flex flex-col gap-3 rounded-lg bg-stone-900/60 p-3 text-sm text-stone-200">
@@ -63,7 +65,7 @@ export function CoachProgressPanel({ items, version }: Props) {
       {members && rows.length === 0 && <p className="text-stone-400">Aucun élève pour l’instant : envoie le lien du groupe.</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-left text-sm">
+          <table className="w-full min-w-[38rem] text-left text-sm">
             <thead className="text-xs uppercase text-stone-400">
               <tr>
                 <th className="py-1 pr-2 font-semibold">Élève</th>
@@ -71,6 +73,7 @@ export function CoachProgressPanel({ items, version }: Props) {
                 <th className="py-1 pr-2 font-semibold">Record Storm</th>
                 <th className="py-1 pr-2 font-semibold">Record Streak</th>
                 <th className="py-1 pr-2 font-semibold">Réussite</th>
+                <th className="py-1 pr-2 font-semibold" title="Temps médian sur un exercice réussi">Temps médian</th>
                 <th className="py-1 pr-2 font-semibold">Storm récents</th>
                 <th className="py-1 pr-2 font-semibold">Dernière partie</th>
                 <th className="py-1" />
@@ -84,6 +87,7 @@ export function CoachProgressPanel({ items, version }: Props) {
                   <td className="py-1.5 pr-2 tabular-nums">{r.bestStorm ?? '–'}</td>
                   <td className="py-1.5 pr-2 tabular-nums">{r.bestStreak ?? '–'}</td>
                   <td className="py-1.5 pr-2 tabular-nums">{r.success === null ? '–' : `${Math.round(r.success * 100)} %`}</td>
+                  <td className="py-1.5 pr-2 tabular-nums">{r.medianMs === null ? '–' : formatClock(r.medianMs)}</td>
                   <td className="py-1.5 pr-2">
                     <span className="flex items-center gap-1">
                       <Spark values={r.recentStorm} />
@@ -135,6 +139,17 @@ export function CoachProgressPanel({ items, version }: Props) {
                 </span>
                 <span className="shrink-0 tabular-nums text-stone-400">
                   raté {h.misses} fois · {h.students} élève{h.students > 1 ? 's' : ''}
+                  {(() => {
+                    const st = stats.get(h.index);
+                    if (!st) return null;
+                    const wrong = st.commonWrong ? `${st.commonWrong.uci.slice(0, 2)}-${st.commonWrong.uci.slice(2)}` : null;
+                    return (
+                      <>
+                        {st.medianMs !== null && ` · ${formatClock(st.medianMs)} quand réussi`}
+                        {wrong && ` · erreur fréquente : ${wrong}`}
+                      </>
+                    );
+                  })()}
                 </span>
               </li>
             ))}

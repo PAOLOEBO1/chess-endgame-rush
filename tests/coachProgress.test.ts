@@ -38,3 +38,35 @@ test('rang d’un exercice d’entraîneur', () => {
   assert.equal(coachIndexOf('c-ZZZZ2222-1', 'ABCD2345'), null);
   assert.equal(coachIndexOf('bases-lucena', 'ABCD2345'), null);
 });
+
+test('suivi : détail par exercice (temps médian, erreur fréquente) et validation', async () => {
+  const { coachDetail, exerciseStats, sanitizeDetail, median } = await import('../src/core/coachProgress');
+  assert.deepEqual(
+    coachDetail(
+      [
+        { id: 'c-ABCDEFGH-1', ok: true, ms: 8000 },
+        { id: 'lichess-x', ok: false },
+        { id: 'c-ABCDEFGH-3', ok: false, ms: 4000, w: 'd1d8', e: 'loses' },
+      ],
+      'ABCDEFGH',
+    ),
+    [{ i: 0, ok: true, ms: 8000 }, { i: 2, ok: false, ms: 4000, w: 'd1d8', e: 'loses' }],
+  );
+  assert.deepEqual(sanitizeDetail([{ i: 1, ok: true, ms: -3, w: '<b>', e: 'zz' }, { i: 'x', ok: true }, { i: 600, ok: true }, null]), [{ i: 1, ok: true }]);
+  assert.deepEqual(sanitizeDetail('pas un tableau'), []);
+  assert.equal(median([3, 1, 2]), 2);
+  assert.equal(median([4, 1, 2, 3]), 3);
+  assert.equal(median([]), null);
+
+  const d = (i: number, ok: boolean, ms?: number, w?: string) => ({ i, ok, ...(ms != null ? { ms } : {}), ...(w ? { w } : {}) });
+  const ms: MemberProgress[] = [
+    { id: 'a', pseudo: 'A', joined: '', lastSeen: '', results: [{ ...R(1, 'storm', 2, 1, 3), d: [d(0, true, 5000), d(1, true, 9000), d(2, false, 3000, 'a1a8')] }] },
+    { id: 'b', pseudo: 'B', joined: '', lastSeen: '', results: [{ ...R(2, 'storm', 1, 1, 2), d: [d(0, true, 7000), d(2, false, 2000, 'a1a8')] }, { ...R(3, 'storm', 0, 1, 1, [], 'V1'), d: [d(2, false, 1, 'h1h8')] }] },
+  ];
+  const st = exerciseStats(ms, 'V2');
+  assert.deepEqual(st.get(0), { index: 0, tries: 2, success: 1, medianMs: 6000, commonWrong: null });
+  assert.deepEqual(st.get(2), { index: 2, tries: 2, success: 0, medianMs: null, commonWrong: { uci: 'a1a8', n: 2 } });
+  const rows = studentRows(ms);
+  assert.equal(rows[0].medianMs, 7000);
+  assert.equal(rows[1].medianMs, 7000);
+});

@@ -6,46 +6,7 @@ import type { Puzzle } from '../core/types';
 import { readPuzzleFile, type RawPuzzle } from './puzzleFormat';
 
 
-const THEME_FR: Record<string, string> = {
-  advancedPawn: 'pion avancé',
-  promotion: 'promotion',
-  underPromotion: 'sous-promotion',
-  crushing: 'gain décisif',
-  advantage: 'avantage',
-  equality: 'égalisation',
-  mate: 'mat',
-  mateIn1: 'mat en 1',
-  mateIn2: 'mat en 2',
-  mateIn3: 'mat en 3',
-  mateIn4: 'mat en 4',
-  mateIn5: 'mat en 5+',
-  zugzwang: 'zugzwang',
-  skewer: 'enfilade',
-  fork: 'fourchette',
-  pin: 'clouage',
-  hangingPiece: 'pièce en prise',
-  defensiveMove: 'coup défensif',
-  quietMove: 'coup calme',
-  sacrifice: 'sacrifice',
-  deflection: 'déviation',
-  attraction: 'attraction',
-  discoveredAttack: 'attaque à la découverte',
-  xRayAttack: 'rayons X',
-  intermezzo: 'coup intermédiaire',
-  exposedKing: 'roi exposé',
-  trappedPiece: 'pièce piégée',
-  clearance: 'dégagement',
-  interference: 'interférence',
-  capturingDefender: 'élimination du défenseur',
-  doubleCheck: 'échec double',
-  backRankMate: 'mat du couloir',
-  pawnEndgame: 'finale de pions',
-  rookEndgame: 'finale de tours',
-  queenEndgame: 'finale de dames',
-  bishopEndgame: 'finale de fous',
-  knightEndgame: 'finale de cavaliers',
-  queenRookEndgame: 'dame et tour',
-};
+import { THEME_FR } from '../core/motifs';
 
 const ENDGAME_THEME_KEYS = new Set(['pawnEndgame', 'rookEndgame', 'queenEndgame', 'bishopEndgame', 'knightEndgame', 'queenRookEndgame']);
 

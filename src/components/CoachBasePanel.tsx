@@ -235,7 +235,8 @@ export function CoachBasePanel({ signedIn, onAccount, engine }: Props) {
                 Une partie par exercice, avec un en-tête <code>[FEN "…"]</code> : c’est au camp qui a le trait de jouer (l’élève), et la ligne
                 principale est la solution (les variantes sont ignorées, 20 demi-coups au plus). Objectif « gagner » par défaut ;{' '}
                 <code>[Result "1/2-1/2"]</code> = tenir la nulle. Un en-tête <code>[Rating "1450"]</code> fixe l’Elo de l’exercice. Le titre
-                vient de <code>[Event]</code>. Exports Lichess (études) et ChessBase conviennent. N’importe que des exercices que tu as le droit
+                vient de <code>[Event]</code>. Un en-tête <code>[Theme "Opposition, Triangulation"]</code> (3 thèmes au plus) permet à tes
+                élèves de s’entraîner sur un motif précis. Exports Lichess (études) et ChessBase conviennent. N’importe que des exercices que tu as le droit
                 de partager (pas de recueil sous droits d’auteur).
               </p>
             </details>
@@ -247,6 +248,11 @@ export function CoachBasePanel({ signedIn, onAccount, engine }: Props) {
                 <strong>{parsed.drafts.length}</strong> exercice{parsed.drafts.length > 1 ? 's' : ''} lu{parsed.drafts.length > 1 ? 's' : ''}
                 {parsed.drafts.length > COACH_MAX_ITEMS && ` (les ${COACH_MAX_ITEMS} premiers seront gardés)`}
                 {parsed.skipped.length > 0 && `, ${parsed.skipped.length} ignoré${parsed.skipped.length > 1 ? 's' : ''}`}.
+                {(() => {
+                  const n = parsed.drafts.filter((d) => d.themes.length).length;
+                  const names = [...new Set(parsed.drafts.flatMap((d) => d.themes))];
+                  return n > 0 ? ` ${n} avec un thème (${names.slice(0, 6).join(', ')}${names.length > 6 ? '…' : ''}).` : null;
+                })()}
               </p>
               {parsed.skipped.length > 0 && (
                 <details className="text-xs text-stone-400">

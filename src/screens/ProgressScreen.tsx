@@ -21,7 +21,7 @@ interface Props {
   onPrivacy: () => void;
   playerId: string | null;
   onPlayerChange: (id: string | null) => void;
-  onTrain: (family: string, subcategory: string, mode?: 'storm' | 'streak') => void;
+  onTrain: (family: string, subcategory: string, mode?: 'storm' | 'streak', motif?: string) => void;
   onHome: () => void;
   /** Ouvrir directement sur les statistiques (sinon : profil et compte en haut). */
   focusStats?: boolean;
@@ -259,8 +259,9 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
           <ScoreDashboard
             runs={history.runs}
             onReplay={(m, themeKey) => {
-              const [fam, sub] = themeKey.split('/');
-              onTrain(fam, sub ?? 'all', m);
+              const [base, motif] = themeKey.split('.');
+              const [fam, sub] = base.split('/');
+              onTrain(fam, sub ?? 'all', m, motif);
             }}
           />
 

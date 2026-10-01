@@ -7,6 +7,7 @@
 // préfère. Les exercices sont ensuite servis du plus facile au plus difficile.
 
 import { applyUci, isValidFen, legalDestsMap, type PgnExercise } from './chessRules';
+import { parseThemes } from './motifs';
 import type { Level, Objective, Puzzle } from './types';
 
 export const COACH_MAX_ITEMS = 500;
@@ -20,6 +21,7 @@ export interface CoachItem {
   o: 'w' | 'd'; // gagner / tenir la nulle
   t?: string; // titre
   e?: 1; // Elo estimé
+  th?: string[]; // thèmes (en-tête PGN [Theme]), 3 au plus
 }
 
 export interface CoachDraft {
@@ -30,6 +32,8 @@ export interface CoachDraft {
   title: string;
   /** Elo donné par l'en-tête PGN (null : à estimer). */
   headerRating: number | null;
+  /** Thèmes de l'en-tête [Theme] (ou [Themes]). */
+  themes: string[];
 }
 
 const clean = (s: string, max: number) => s.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, max);
@@ -50,6 +54,7 @@ export function draftsFromPgn(exercises: PgnExercise[]): CoachDraft[] {
       objective,
       title: clean(title, 60) || `Exercice ${ex.index}`,
       headerRating: Number.isFinite(rawRating) && rawRating >= 400 && rawRating <= 3200 ? Math.round(rawRating) : null,
+      themes: parseThemes(h.Theme ?? h.Themes ?? h.Motif ?? h.Theme1),
     };
   });
 }
@@ -125,6 +130,7 @@ export function finalizeItems(drafts: CoachDraft[], ratings: { r: number; estima
       o: d.objective === 'win' ? 'w' : 'd',
       t: d.title,
       ...(estimated ? { e: 1 as const } : {}),
+      ...(d.themes.length ? { th: d.themes } : {}),
     }));
 }
 
@@ -137,9 +143,15 @@ export function sanitizeCoachItems(raw: unknown): CoachItem[] {
     if (!x || typeof x.f !== 'string' || x.f.length > 100 || !isValidFen(x.f)) continue;
     if (!Array.isArray(x.s) || !x.s.length || x.s.length > COACH_MAX_PLIES || !x.s.every((u) => typeof u === 'string' && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(u))) continue;
     if (typeof x.r !== 'number' || x.r < 0 || x.r > 4000 || (x.o !== 'w' && x.o !== 'd')) continue;
-    out.push({ f: x.f, s: x.s, r: Math.round(x.r), o: x.o, ...(typeof x.t === 'string' && x.t ? { t: clean(x.t, 60) } : {}), ...(x.e ? { e: 1 as const } : {}) });
+    out.push({ f: x.f, s: x.s, r: Math.round(x.r), o: x.o, ...(typeof x.t === 'string' && x.t ? { t: clean(x.t, 60) } : {}), ...(x.e ? { e: 1 as const } : {}), ...cleanThemes(x.th) });
   }
   return out;
+}
+
+function cleanThemes(raw: unknown): { th?: string[] } {
+  if (!Array.isArray(raw)) return {};
+  const th = parseThemes(raw.filter((t): t is string => typeof t === 'string').join(','));
+  return th.length ? { th } : {};
 }
 
 const levelOf = (r: number): Level => (r < 1000 ? 'debutant' : r < 1500 ? 'intermediaire' : r < 2000 ? 'avance' : 'master');
@@ -157,6 +169,7 @@ export function coachPuzzles(code: string, items: CoachItem[]): Puzzle[] {
     ratingEstimated: !!x.e,
     concept: 'Exercice choisi par ton entraîneur : cherche la meilleure suite.',
     solution: x.s,
+    ...(x.th ? { themes: x.th } : {}),
   }));
 }
 

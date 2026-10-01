@@ -13,6 +13,33 @@ export interface Attempt {
   ok: boolean;
   /** Type d'erreur (position ratée ou réussie avec indice), absent sinon. */
   e?: ErrorType;
+  /** Temps de réflexion sur l'exercice (ms), absent avant la v0.9. */
+  ms?: number;
+  /** Premier mauvais coup joué (UCI), absent si aucun. */
+  w?: string;
+}
+
+/** Temps et premier mauvais coup d'une tentative. */
+export interface SolveInfo {
+  ms?: number;
+  w?: string;
+}
+
+/** Un exercice joué dans une partie Storm / Streak (détail envoyé à l'entraîneur). */
+export interface PlayedExercise extends SolveInfo {
+  id: string;
+  ok: boolean;
+  e?: ErrorType;
+}
+
+export const UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+export const MAX_SOLVE_MS = 3_600_000;
+/** Ne garde que des valeurs valides (mêmes bornes que la base en ligne). */
+export function cleanSolveInfo(s: SolveInfo | undefined): SolveInfo {
+  const out: SolveInfo = {};
+  if (s?.ms != null && Number.isFinite(s.ms)) out.ms = Math.min(MAX_SOLVE_MS, Math.max(0, Math.round(s.ms)));
+  if (typeof s?.w === 'string' && UCI.test(s.w)) out.w = s.w;
+  return out;
 }
 
 export interface Run {
@@ -63,7 +90,9 @@ export function isAttempt(a: unknown): a is Attempt {
     str(x.c, 40, ID) &&
     str(x.f, 20, ID) &&
     typeof x.ok === 'boolean' &&
-    (x.e === undefined || x.e === null || isErrorType(x.e))
+    (x.e === undefined || x.e === null || isErrorType(x.e)) &&
+    optInt(x.ms, 0, MAX_SOLVE_MS) &&
+    (x.w === undefined || x.w === null || (typeof x.w === 'string' && UCI.test(x.w)))
   );
 }
 
@@ -96,8 +125,12 @@ export function sanitizeHistory(h: unknown): { history: PlayerHistory; rejected:
   return { history: { attempts, runs }, rejected: rawA.length - attempts.length + rawR.length - runs.length };
 }
 
-function pickAttempt({ t, m, p, r, c, f, ok, e }: Attempt): Attempt {
-  return e ? { t, m, p, r, c, f, ok, e } : { t, m, p, r, c, f, ok };
+function pickAttempt({ t, m, p, r, c, f, ok, e, ms, w }: Attempt): Attempt {
+  const a: Attempt = { t, m, p, r, c, f, ok };
+  if (e) a.e = e;
+  if (ms != null) a.ms = ms;
+  if (w) a.w = w;
+  return a;
 }
 
 function pickRun(r: Run): Run {
@@ -146,9 +179,9 @@ export interface RunRow {
   duration_ms: number | null;
 }
 
-export type AttemptRow = Omit<Attempt, 'e'> & { user_id?: string; e?: ErrorType | null };
+export type AttemptRow = Omit<Attempt, 'e' | 'ms' | 'w'> & { user_id?: string; e?: ErrorType | null; ms?: number | null; w?: string | null };
 
-export const attemptToRow = (a: Attempt, userId: string): AttemptRow => ({ user_id: userId, t: a.t, m: a.m, p: a.p, r: a.r, c: a.c, f: a.f, ok: a.ok, e: a.e ?? null });
+export const attemptToRow = (a: Attempt, userId: string): AttemptRow => ({ user_id: userId, t: a.t, m: a.m, p: a.p, r: a.r, c: a.c, f: a.f, ok: a.ok, e: a.e ?? null, ms: a.ms ?? null, w: a.w ?? null });
 
 export const runToRow = (r: Run, userId: string): RunRow => ({
   user_id: userId,
@@ -181,4 +214,4 @@ export const rowToRun = (x: RunRow): Run =>
   });
 
 export const rowToAttempt = (x: AttemptRow): Attempt =>
-  pickAttempt({ t: Number(x.t), m: x.m, p: x.p, r: x.r, c: x.c, f: x.f, ok: x.ok, e: isErrorType(x.e) ? x.e : undefined });
+  pickAttempt({ t: Number(x.t), m: x.m, p: x.p, r: x.r, c: x.c, f: x.f, ok: x.ok, e: isErrorType(x.e) ? x.e : undefined, ...cleanSolveInfo({ ms: x.ms ?? undefined, w: x.w ?? undefined }) });

@@ -1,3 +1,4 @@
+import type { MotifChoice } from '../core/motifs';
 import { SUBCATEGORIES } from '../core/categories';
 import { BASICS_GROUPS } from '../data/puzzlesMock';
 import { CONFIG } from '../core/config';
@@ -54,6 +55,10 @@ interface Props {
   sub: string;
   /** Nombre de finales disponibles par sous-thème (id → n) et par famille. */
   counts: Map<string, number>;
+  /** Motifs disponibles pour le thème choisi, et motif choisi ('all' = tous). */
+  motifs: MotifChoice[];
+  motif: string;
+  onMotif: (id: string) => void;
   playerName: string | null;
   /** Menu de l'en-tête : profils de l'appareil et compte connecté. */
   players: ProfileEntry[];
@@ -509,6 +514,23 @@ export function HomeScreen(p: Props) {
               </div>
             )}
           </div>
+          {p.motifs.length > 0 && (
+            <div>
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-400">
+                Motif <span className="font-normal normal-case text-stone-400">(facultatif)</span>
+              </h2>
+              <div className="flex flex-wrap gap-2" aria-label="Motifs">
+                <button type="button" className={subChip(p.motif === 'all')} onClick={() => p.onMotif('all')} aria-pressed={p.motif === 'all'}>
+                  Tous
+                </button>
+                {p.motifs.map((m) => (
+                  <button key={m.id} type="button" className={subChip(p.motif === m.id)} onClick={() => p.onMotif(m.id)} aria-pressed={p.motif === m.id}>
+                    {m.label} <Count n={m.n} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-400">Niveau de départ <span className="font-normal normal-case text-stone-400">(facultatif)</span></h2>
             <div className="flex flex-wrap gap-2">

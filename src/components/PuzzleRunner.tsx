@@ -2,6 +2,9 @@
 
 import { errorTypeOf, type ErrorType } from '../core/errorTypes';
 import { useEffect, useMemo, useRef } from 'react';
+import type { SolveInfo } from '../core/history';
+import { useSolveClock } from '../hooks/useSolveClock';
+import { SolveClock } from './hud/SolveClock';
 import { rushRules } from '../core/config';
 import { parseUci } from '../core/fen';
 import type { Puzzle } from '../core/types';
@@ -18,7 +21,7 @@ interface Props {
   puzzle: Puzzle;
   active: boolean;
   judge: MoveJudge;
-  onEnd: (end: PuzzleEnd, error?: ErrorType) => void;
+  onEnd: (end: PuzzleEnd, error?: ErrorType, info?: SolveInfo) => void;
   onPlayerMove?: () => void;
   /** Message affiché à la place de l'état (ex. « le chrono démarre au premier coup »). */
   banner?: string | null;
@@ -37,6 +40,7 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
   const { state, playMove } = usePuzzlePlayer(puzzle, rules, judge, onPlayerMove);
   const flash = useBoardFlash(state.phase, state.verdict?.kind);
   const reported = useRef(false);
+  const clock = useSolveClock(active && state.phase === 'awaitingPlayer');
 
   useEffect(() => {
     if (reported.current) return;
@@ -44,7 +48,10 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
       state.phase === 'solved' ? 'solved' : state.phase === 'failed' ? 'failed' : state.phase === 'error' ? 'skipped' : null;
     if (end) {
       reported.current = true;
-      onEnd(end, errorTypeOf({ success: end === 'solved', endReason: state.endReason, verdict: state.verdict, fen: state.fen }));
+      onEnd(end, errorTypeOf({ success: end === 'solved', endReason: state.endReason, verdict: state.verdict, fen: state.fen }), {
+        ms: clock.read(),
+        ...(state.firstWrong ? { w: state.firstWrong } : {}),
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- issue lue au moment où la phase change
   }, [state.phase, onEnd]);
@@ -75,13 +82,16 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
             {puzzle.objective === 'win' ? 'gagner' : 'tenir la nulle'}
           </span>
         </span>
-        <span className="text-stone-400">
+        <span className="flex items-center gap-2 text-stone-400">
+          <SolveClock ms={clock.read()} running={active && state.phase === 'awaitingPlayer'} />
+          <span>
           <span title={puzzle.ratingEstimated ? 'Elo estimé : exercice généré, pas encore noté par Lichess' : 'Elo Lichess'}>
             Elo {puzzle.ratingEstimated ? '≈' : ''}
             {puzzle.rating}
           </span>{' '}
           · coup {Math.min(state.playerMoveCount + (state.phase === 'awaitingPlayer' ? 1 : 0), rules.maxPlayerMoves ?? 1)}/
           {rules.maxPlayerMoves}
+          </span>
         </span>
       </div>
       <div className={flash}>

@@ -51,6 +51,8 @@ export interface SessionState {
   error: string | null;
   /** Nombre de mauvais coups repris (entraînement). */
   takebacks: number;
+  /** Premier coup du joueur jugé mauvais dans cette tentative (UCI), conservé après une reprise. */
+  firstWrong: string | null;
 }
 
 export type SessionEvent =
@@ -78,6 +80,7 @@ export function initialSession(puzzle: Puzzle, rules: ModeRules): SessionState {
     endReason: null,
     error: null,
     takebacks: 0,
+    firstWrong: null,
   };
 }
 
@@ -145,7 +148,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
     case 'VERDICT': {
       if (state.phase !== 'judging') return state;
       const next = { ...state, verdict: event.verdict };
-      if (event.verdict.kind === 'bad') return finish(next, false, 'bad-move');
+      if (event.verdict.kind === 'bad') return finish({ ...next, firstWrong: state.firstWrong ?? state.lastPlayerMove?.uci ?? null }, false, 'bad-move');
 
       const objective = state.puzzle.objective;
       const played = state.lastPlayerMove;
