@@ -2,6 +2,7 @@
 // plus ; le joueur annonce le résultat avec le meilleur jeu, la table corrige.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Board } from '../components/board/Board';
 import { materialSymbols } from '../core/material';
 import { buildQuestion, type JudgeQuestion, type Verdict3 } from '../core/quiz/judgeQuiz';
@@ -125,16 +126,16 @@ export function JudgeQuizScreen({ pool, tablebase, onHome }: Props) {
     const avg = times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length / 100) / 10 : 0;
     return (
       <div className="mx-auto flex max-w-md flex-col gap-4 px-4 py-10 text-center">
-        <h1 className="text-2xl font-extrabold text-stone-50">⚖️ {score} / {SERIES}</h1>
+        <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="scale" className="h-6 w-6 text-amber-300" /> {score} / {SERIES}</h1>
         <p className="text-stone-300">
-          {done.record ? '🏆 Nouveau record !' : best ? `Record : ${best.score} / ${SERIES}` : ''} Temps moyen : {avg} s par position.
+          {done.record ? 'Nouveau record !' : best ? `Record : ${best.score} / ${SERIES}` : ''} Temps moyen : {avg} s par position.
         </p>
         <p className="text-sm text-stone-400">
           Savoir juger vite une finale aide à choisir ses échanges : simplifier vers une finale gagnante, éviter une finale perdante.
         </p>
         <div className="flex justify-center gap-3">
           <button type="button" onClick={restart} className="rounded-lg bg-amber-500 px-5 py-2 font-bold text-stone-900 hover:bg-amber-400">
-            ↺ Nouvelle série
+            <Icon name="refresh" className="h-4 w-4" /> Nouvelle série
           </button>
           <button type="button" onClick={onHome} className="rounded-lg bg-stone-700 px-5 py-2 font-semibold text-stone-100">
             Accueil
@@ -165,7 +166,7 @@ export function JudgeQuizScreen({ pool, tablebase, onHome }: Props) {
       <aside className="flex w-full flex-col gap-4">
         {header}
         <div>
-          <h1 className="text-2xl font-bold text-stone-50">⚖️ Gain, nulle ou perte ?</h1>
+          <h1 className="text-2xl font-bold text-stone-50"><Icon name="scale" className="h-6 w-6 text-amber-300" /> Gain, nulle ou perte ?</h1>
           <p className="mt-1 text-sm text-stone-400">
             {question ? `${materialSymbols(question.fen, 'w').text} · trait aux ${turn}` : ''} — résultat avec le meilleur jeu des deux camps.
           </p>
@@ -192,7 +193,7 @@ export function JudgeQuizScreen({ pool, tablebase, onHome }: Props) {
         {answered && question && (
           <div className={`rounded-xl px-4 py-3 ${right ? 'bg-emerald-900/70 text-emerald-100' : 'bg-red-900/70 text-red-100'}`} role="status">
             <p className="font-semibold">
-              {right ? '✅ Exact' : '❌ Non'} : {LABEL[question.answer].toLowerCase()}
+              <Icon name={right ? 'check' : 'cross'} className="h-4 w-4" /> {right ? 'Exact' : 'Non'} : {LABEL[question.answer].toLowerCase()}
               {question.mateIn ? ` (mat en ${question.mateIn} avec le meilleur jeu)` : ''}.
             </p>
           </div>

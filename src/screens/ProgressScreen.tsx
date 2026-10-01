@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccountPanel } from '../components/AccountPanel';
+import { Icon } from '../components/Icon';
 import { ScoreDashboard } from '../components/ScoreDashboard';
 import { badges, dayStreak } from '../core/motivation';
 import { ratingsByKey } from '../core/playerRating';
@@ -123,7 +124,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-stone-50">📈 Joueurs et progression</h1>
+        <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="chart" className="h-6 w-6 text-amber-300" /> Joueurs et progression</h1>
         <button type="button" onClick={onHome} className="text-sm text-stone-400 hover:text-stone-100">
           ← Accueil
         </button>
@@ -135,8 +136,8 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
         <div className="flex flex-wrap gap-2">
           {players.map((p) => (
             <button key={p.id} type="button" className={chip(p.id === playerId)} onClick={() => onPlayerChange(p.id)}>
-              👤 {p.name}
-              {p.id === account.linkedPlayerId && ' ☁'}
+              <Icon name="user" className="h-4 w-4" /> {p.name}
+              {p.id === account.linkedPlayerId && <Icon name="cloud" className="ml-1 h-4 w-4 text-sky-300" label="relié au compte" />}
             </button>
           ))}
           <button type="button" className={chip(playerId === null)} onClick={() => onPlayerChange(null)}>
@@ -149,7 +150,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
         {current &&
           (rename === null ? (
             <button type="button" onClick={() => setRename(current.name)} className="self-start text-sm text-sky-400 hover:underline">
-              ✏️ Renommer « {current.name} »
+              <Icon name="edit" className="h-4 w-4" /> Renommer « {current.name} »
             </button>
           ) : (
             <form
@@ -199,7 +200,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
             ⬇ Exporter la sauvegarde
           </button>
           <button type="button" onClick={() => fileInput.current?.click()} className="text-sky-400 hover:underline">
-            ⬆ Importer une sauvegarde
+            <Icon name="upload" className="h-4 w-4" /> Importer une sauvegarde
           </button>
           <input
             ref={fileInput}
@@ -235,7 +236,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
               </span>
             ) : (
               <button type="button" onClick={() => setConfirmDelete(true)} className="text-red-400 hover:underline">
-                🗑 Supprimer ce joueur
+                <Icon name="trash" className="h-4 w-4" /> Supprimer ce joueur
               </button>
             ))}
         </div>
@@ -246,7 +247,7 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
         </p>
         <AccountPanel account={account} playerId={playerId} playerName={current?.name ?? null} linkedName={players.find((x) => x.id === account.linkedPlayerId)?.name ?? null} onSelectPlayer={onPlayerChange} />
         <button type="button" onClick={onPrivacy} className="self-start text-xs text-sky-400 hover:underline">
-          🔒 Données personnelles : ce qui est conservé et comment le supprimer
+          <Icon name="lock" className="h-4 w-4" /> Données personnelles : ce qui est conservé et comment le supprimer
         </button>
       </section>
 
@@ -343,7 +344,7 @@ function BadgeGrid({ history }: { history: { attempts: { t: number; m: string; p
   return (
     <section className="flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
       <h2 className="text-lg font-bold text-stone-50">
-        🏅 Badges <span className="text-sm font-normal text-stone-400">({earned}/{list.length})</span>
+        <Icon name="medal" className="h-5 w-5 text-amber-300" /> Badges <span className="text-sm font-normal text-stone-400">({earned}/{list.length})</span>
       </h2>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {list.map((b) => (

@@ -1,6 +1,7 @@
 // Série reçue d'un entraîneur : présentation, puis bilan à lui renvoyer.
 
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { resultText, type Series } from '../core/series';
 
 interface Props {
@@ -35,7 +36,7 @@ export function SeriesScreen({ series, results, titles, onPlay, onHome }: Props)
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 px-4 py-8">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-amber-300">🧑‍🏫 Série de ton entraîneur</p>
+        <p className="text-sm font-semibold text-amber-300"><Icon name="board" className="h-4 w-4" /> Série de ton entraîneur</p>
         <button type="button" onClick={onHome} className="text-sm text-stone-400 hover:text-stone-100">
           ← Accueil
         </button>
@@ -52,7 +53,7 @@ export function SeriesScreen({ series, results, titles, onPlay, onHome }: Props)
               <span>
                 {i + 1}. {t}
               </span>
-              <span>{results[i] === true ? '✅' : results[i] === false ? '❌' : '▶'}</span>
+              <Icon name={results[i] === true ? 'check' : results[i] === false ? 'cross' : 'play'} className={`h-4 w-4 ${results[i] === true ? 'text-emerald-300' : results[i] === false ? 'text-red-300' : ''}`} label={results[i] === true ? 'réussi' : results[i] === false ? 'raté' : 'à jouer'} />
             </button>
           </li>
         ))}
@@ -67,7 +68,7 @@ export function SeriesScreen({ series, results, titles, onPlay, onHome }: Props)
             Série terminée : {solved}/{series.items.length}.
           </p>
           <button type="button" onClick={() => void send()} className="self-start rounded-lg bg-amber-500 px-5 py-2 font-bold text-stone-900 hover:bg-amber-400">
-            📤 Envoyer mon résultat à mon entraîneur
+            <Icon name="send" className="h-4 w-4" /> Envoyer mon résultat à mon entraîneur
           </button>
           <p className="select-all rounded bg-stone-900/60 p-2 font-mono text-xs">{text}</p>
           {message && <p className="text-sm text-amber-200">{message}</p>}

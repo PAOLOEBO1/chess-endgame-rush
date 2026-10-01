@@ -3,7 +3,9 @@
 
 import type { ReactNode } from 'react';
 
-const CONTACT = import.meta.env.VITE_CONTACT_EMAIL || '';
+import { Icon } from '../components/Icon';
+
+export const CONTACT = import.meta.env.VITE_CONTACT_EMAIL || '';
 export const SOURCE_URL = import.meta.env.VITE_SOURCE_URL || '';
 const UPDATED = '2 octobre 2026';
 
@@ -11,7 +13,9 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-8 text-sm leading-relaxed text-stone-300">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold text-stone-50">🔒 Données personnelles</h1>
+        <h1 className="text-2xl font-extrabold text-stone-50">
+          <Icon name="lock" className="h-6 w-6 text-amber-300" /> Données personnelles
+        </h1>
         <button type="button" onClick={onHome} className="text-sm text-stone-400 hover:text-stone-100">
           ← Accueil
         </button>
@@ -163,7 +167,7 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2 rounded-xl bg-stone-800/60 p-4">
       <h2 className="text-base font-bold text-stone-50">{title}</h2>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Board, type MarkTone } from '../components/board/Board';
 import { useBoardFlash } from '../components/board/useBoardFlash';
 import { MoveInput } from '../components/board/MoveInput';
@@ -180,7 +181,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
           {feedback.detail && <p className="mt-1 text-sm opacity-90">{feedback.detail}</p>}
           {state.phase === 'solved' && state.takebacks > 0 && (
             <p className="mt-1 text-sm opacity-90">
-              Réussi après {state.takebacks} correction{state.takebacks > 1 ? 's' : ''} : recommence depuis le début pour la valider ✅.
+              Réussi après {state.takebacks} correction{state.takebacks > 1 ? 's' : ''} : recommence depuis le début pour la valider.
             </p>
           )}
         </div>
@@ -192,7 +193,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
         ) : (
         <div className="flex flex-col gap-2 rounded-xl bg-stone-800/60 px-4 py-3 text-sm text-stone-300">
           {planShown ? (
-            <p>💡 {puzzle.concept}</p>
+            <p><Icon name="bulb" className="h-4 w-4 text-amber-300" /> {puzzle.concept}</p>
           ) : (
             <p className="text-stone-400">Cherche d’abord seul. Besoin d’aide ? Les indices viennent un par un.</p>
           )}
@@ -207,17 +208,17 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
                   }}
                   className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600"
                 >
-                  💡 Indice 1 : le plan
+                  <Icon name="bulb" className="h-4 w-4" /> Indice 1 : le plan
                 </button>
               )}
               {planShown && hintLevel < 2 && (
                 <button type="button" onClick={() => void askHint(2)} className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600">
-                  🎯 Indice 2 : la pièce à jouer
+                  <Icon name="target" className="h-4 w-4" /> Indice 2 : la pièce à jouer
                 </button>
               )}
               {hintLevel === 2 && (
                 <button type="button" onClick={() => void askHint(3)} className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600">
-                  ➡️ Indice 3 : le coup
+                  <Icon name="arrowRight" className="h-4 w-4" /> Indice 3 : le coup
                 </button>
               )}
               {hintBusy && <span className="self-center text-stone-400">Recherche…</span>}
@@ -225,7 +226,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
             </div>
           )}
           {hintsUsed.current > 0 && (
-            <p className="text-xs text-stone-400">Avec un indice, la position ne compte pas comme réussie : refais-la sans aide pour la valider ✅.</p>
+            <p className="text-xs text-stone-400">Avec un indice, la position ne compte pas comme réussie : refais-la sans aide pour la valider.</p>
           )}
         </div>
         )}
@@ -247,7 +248,7 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
             className="self-start rounded-lg border border-stone-600 px-3 py-1.5 text-sm font-semibold text-stone-200 hover:bg-stone-800"
             title="L'ordinateur joue le camp gagnant, toi tu défends"
           >
-            🛡️ Jouer l’autre camp (défendre)
+            <Icon name="shield" className="h-4 w-4" /> Jouer l’autre camp (défendre)
           </button>
         )}
         <div className="flex flex-wrap gap-3">
@@ -268,12 +269,12 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
               className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600"
               title="Revoir la partie coup par coup avec la table de finales"
             >
-              🔎 Analyser
+              <Icon name="search" className="h-4 w-4" /> Analyser
             </button>
           )}
           {!exam && (
           <button type="button" onClick={() => { reset(); setPlanShown(false); }} className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">
-            ↺ Recommencer
+            <Icon name="refresh" className="h-4 w-4" /> Recommencer
           </button>
           )}
           <button

@@ -1,6 +1,7 @@
 // Leçon guidée : une position classique rejouée coup par coup, commentée.
 
 import { useEffect, useMemo, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Board } from '../components/board/Board';
 import { applyUci } from '../core/chessRules';
 import type { Lesson } from '../data/lessons';
@@ -62,7 +63,7 @@ export function LessonScreen({ lesson, onPractice, onHome }: Props) {
           ← Accueil
         </button>
         <div>
-          <p className="text-sm font-semibold text-amber-300">🎓 Leçon guidée</p>
+          <p className="text-sm font-semibold text-amber-300"><Icon name="cap" className="h-4 w-4" /> Leçon guidée</p>
           <h1 className="text-2xl font-bold text-stone-50">{lesson.title}</h1>
         </div>
         <div className="min-h-[5rem] rounded-xl bg-stone-800 px-4 py-3 text-stone-100" role="status" aria-live="polite">

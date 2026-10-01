@@ -11,10 +11,10 @@ import { materialSymbols } from '../core/material';
 import type { RushMode } from '../core/rush/rushRules';
 import type { ExamRecord } from '../core/exam';
 import type { Level, Puzzle } from '../core/types';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { BestScore } from '../services/highScores';
-import { isSoundOn, setSoundOn } from '../services/sound';
-import { applyBoardTheme, BOARD_THEMES, getSettings, setSetting, type BoardTheme, type TrainTab } from '../services/settings';
+import { SettingsMenu } from '../components/SettingsMenu';
+import { getSettings, setSetting, type TrainTab } from '../services/settings';
 
 export type HomeMode = RushMode | 'training';
 export type ThemeChoice = 'mix' | 'bases' | 'pions' | 'tours' | 'dames' | 'fous' | 'cavaliers' | 'mixte' | 'entraineur';
@@ -70,6 +70,7 @@ interface Props {
   /** Classement public (absent si les comptes en ligne ne sont pas configurés). */
   onLeaderboard?: () => void;
   onPrivacy: () => void;
+  onLegal: () => void;
   /** Guide de l'application. */
   onHelp: () => void;
   /** Révision des erreurs (joueur sélectionné) : à revoir maintenant / en cours / mode. */
@@ -102,7 +103,7 @@ interface Props {
   weakness: { family: string; label: string; elo: number } | null;
   onWeakness: (family: string) => void;
   /** Espace entraîneur : composer une série à partager par lien. */
-  onCoach: () => void;
+  onCoach: (tab?: 'groupe' | 'suivi' | 'series') => void;
   /** Analyse libre d'une position. */
   onAnalysis: () => void;
   /** Leçons guidées (démonstrations commentées). */
@@ -295,22 +296,157 @@ const chip = (active: boolean) =>
 /** Départ légèrement sous l'Elo personnel (échauffement), arrondi à 50. */
 const myStart = (elo: number) => Math.max(400, Math.round((elo - 100) / 50) * 50);
 
+/** Une ligne de la carte « Aujourd'hui » : icône, texte, action. */
+function TodayRow({ icon, tone = 'text-amber-300', children, action }: { icon: IconName; tone?: string; children: ReactNode; action?: ReactNode }) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2">
+      <span className="flex min-w-0 items-start gap-2 text-sm text-stone-200">
+        <Icon name={icon} className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} />
+        <span>{children}</span>
+      </span>
+      {action}
+    </li>
+  );
+}
+
+const todayBtn = (primary = false) =>
+  `shrink-0 rounded-lg px-3 py-1.5 text-sm font-bold ${primary ? 'bg-amber-500 text-stone-900 hover:bg-amber-400' : 'bg-stone-700 text-stone-100 hover:bg-stone-600'}`;
+
+/** Ce qu'il y a à faire aujourd'hui, en une seule carte (révision, puzzle du jour, défi, point faible). */
+function TodayCard({ p }: { p: Props }) {
+  const review = p.review && p.review.total > 0 ? p.review : null;
+  if (!review && !p.daily && !p.challenge && !p.weakness && !p.streak) return null;
+  const streak = p.streak;
+  return (
+    <section aria-labelledby="today-title" className="mb-6 rounded-xl border border-stone-700 bg-stone-800/50 px-4 pb-2 pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="today-title" className="text-sm font-semibold uppercase tracking-wide text-stone-400">
+          <Icon name="calendar" className="h-4 w-4" /> Aujourd’hui
+        </h2>
+        {streak && (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${streak.current > 0 ? 'bg-orange-500/20 text-orange-300' : 'bg-stone-800 text-stone-400'}`}
+            title={`Meilleure série : ${streak.best} jour(s)`}
+          >
+            <Icon name="flame" className="h-3.5 w-3.5" /> {streak.current} jour{streak.current > 1 ? 's' : ''} d’affilée
+            {!streak.playedToday && streak.current > 0 && ' · joue pour la prolonger'}
+          </span>
+        )}
+      </div>
+      <ul className="divide-y divide-stone-700/60">
+        {review && (
+          <TodayRow
+            icon="refresh"
+            action={
+              review.due > 0 ? (
+                <button type="button" onClick={p.onReview} className={todayBtn(true)}>
+                  Réviser
+                </button>
+              ) : (
+                <span className="text-xs text-stone-400">rien à revoir aujourd’hui</span>
+              )
+            }
+          >
+            <strong>Révision des erreurs :</strong>{' '}
+            {review.spaced ? `${review.due} à revoir` : `${review.total} à retravailler`}
+            <span className="text-stone-400"> · {review.total} en cours</span>
+          </TodayRow>
+        )}
+        {p.daily && (
+          <TodayRow
+            icon="pin"
+            tone="text-sky-300"
+            action={
+              p.daily.result === null ? (
+                <button type="button" onClick={p.onDaily} className={todayBtn()} title={p.daily.title}>
+                  Jouer
+                </button>
+              ) : (
+                <span className={`flex items-center gap-1 text-sm font-semibold ${p.daily.result ? 'text-emerald-300' : 'text-red-300'}`}>
+                  <Icon name={p.daily.result ? 'check' : 'cross'} className="h-4 w-4" /> {p.daily.result ? 'réussi' : 'raté, à revoir'}
+                </span>
+              )
+            }
+          >
+            <strong>Puzzle du jour</strong> <span className="text-stone-400">· Elo {p.daily.rating}</span>
+          </TodayRow>
+        )}
+        {p.challenge && (
+          <TodayRow
+            icon="flag"
+            tone="text-sky-300"
+            action={
+              p.challenge.played < p.challenge.total ? (
+                <button type="button" onClick={p.onChallenge} className={todayBtn()}>
+                  {p.challenge.played === 0 ? 'Jouer' : 'Continuer'}
+                </button>
+              ) : (
+                <span className="flex items-center gap-1 text-sm font-semibold text-emerald-300">
+                  <Icon name="check" className="h-4 w-4" /> {p.challenge.solved}/{p.challenge.total} réussies
+                </span>
+              )
+            }
+          >
+            <strong>Défi de la semaine</strong>{' '}
+            <span className="text-stone-400">
+              · {p.challenge.played}/{p.challenge.total} jouées<span className="hidden sm:inline">, mêmes finales pour tout le monde</span>
+            </span>
+          </TodayRow>
+        )}
+        {p.weakness && (
+          <TodayRow
+            icon="target"
+            tone="text-sky-300"
+            action={
+              <button type="button" onClick={() => p.onWeakness(p.weakness!.family)} className={todayBtn()}>
+                Storm ciblé
+              </button>
+            }
+          >
+            <strong>Point faible :</strong> {p.weakness.label.toLowerCase()} <span className="text-stone-400">· Elo {p.weakness.elo}</span>
+          </TodayRow>
+        )}
+      </ul>
+    </section>
+  );
+}
+
+/** Navigation basse (téléphone) : accueil, progression, classement, guide. */
+function BottomNav({ p }: { p: Props }) {
+  const item = 'flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-semibold text-stone-300 hover:text-stone-50';
+  return (
+    <nav
+      aria-label="Navigation principale"
+      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-stone-800 bg-stone-900/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+    >
+      <button type="button" className={`${item} text-amber-300`} aria-current="page" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+        <Icon name="home" className="h-5 w-5" /> Accueil
+      </button>
+      <button type="button" className={item} onClick={() => p.onProgress(true)}>
+        <Icon name="chart" className="h-5 w-5" /> Progrès
+      </button>
+      {p.onLeaderboard && (
+        <button type="button" className={item} onClick={p.onLeaderboard}>
+          <Icon name="trophy" className="h-5 w-5" /> Classement
+        </button>
+      )}
+      <button type="button" className={item} onClick={p.onHelp}>
+        <Icon name="help" className="h-5 w-5" /> Guide
+      </button>
+    </nav>
+  );
+}
+
 export function HomeScreen(p: Props) {
   const rush = p.mode !== 'training';
-  const [sound, setSound] = useState(isSoundOn);
-  const [board, setBoard] = useState<BoardTheme>(() => getSettings().boardTheme);
   const [trainTab, setTrainTab] = useState<TrainTab>(() => getSettings().trainingTab);
+  const [allMotifs, setAllMotifs] = useState(false);
   const pickTrainTab = (t: TrainTab) => {
     setTrainTab(t);
     setSetting('trainingTab', t);
   };
-  const pickBoard = (t: BoardTheme) => {
-    setBoard(t);
-    setSetting('boardTheme', t);
-    applyBoardTheme(t);
-  };
   return (
-    <div className={`mx-auto max-w-5xl px-4 ${p.compact ? 'py-4' : 'py-8'}`}>
+    <div className={`mx-auto max-w-5xl px-4 ${p.compact ? 'py-4' : 'pb-24 pt-6 sm:py-8'}`}>
       <header className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className={`font-extrabold text-stone-50 ${p.compact ? 'text-2xl' : 'text-2xl sm:text-4xl'}`}>
@@ -328,7 +464,7 @@ export function HomeScreen(p: Props) {
           <button
             type="button"
             onClick={p.onLeaderboard}
-            className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
+            className="hidden rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700 sm:block"
             title="Classement des joueurs"
             aria-label="Classement des joueurs"
           >
@@ -338,7 +474,7 @@ export function HomeScreen(p: Props) {
         <button
           type="button"
           onClick={() => p.onProgress(true)}
-          className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
+          className={`${p.compact ? '' : 'hidden sm:block'} rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700`}
           title="Ma progression (statistiques, Elo, badges)"
           aria-label="Ma progression"
         >
@@ -347,126 +483,37 @@ export function HomeScreen(p: Props) {
         <button
           type="button"
           onClick={p.onHelp}
-          className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
+          className={`${p.compact ? '' : 'hidden sm:block'} rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700`}
           title="Guide de l’application"
           aria-label="Guide de l’application"
         >
           <Icon name="help" className="h-5 w-5" />
         </button>
         <ProfileMenu players={p.players} playerId={p.playerId} accountEmail={p.accountEmail} onSelect={p.onSelectPlayer} onManage={() => p.onProgress(false)} />
-        <button
-          type="button"
-          onClick={() => {
-            setSoundOn(!sound);
-            setSound(!sound);
-          }}
-          className="rounded-lg bg-stone-800 px-3 py-2 text-lg hover:bg-stone-700"
-          aria-label={sound ? 'Couper le son' : 'Activer le son'}
-          title={sound ? 'Couper le son' : 'Activer le son'}
-        >
-          <Icon name={sound ? 'volume' : 'mute'} className="h-5 w-5" />
-        </button>
+        <SettingsMenu spaced={p.review?.spaced} onSpaced={p.review ? p.onSpaced : undefined} />
         </div>
       </header>
 
-      {!p.compact && p.weakness && (
-        <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-4">
-          <p className="text-sm text-stone-200">
-            <Icon name="target" className="h-4 w-4 text-sky-300" /> <strong>Ton point faible :</strong> {p.weakness.label.toLowerCase()} (Elo {p.weakness.elo}). Quelques séries ciblées feront
-            monter ta moyenne.
-          </p>
-          <button
-            type="button"
-            onClick={() => p.onWeakness(p.weakness!.family)}
-            className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-bold text-stone-900 hover:bg-sky-400"
-          >
-            <Icon name="bolt" className="h-4 w-4" /> Storm sur ce thème
-          </button>
-        </section>
+      {!p.compact && <TodayCard p={p} />}
+      {p.compact && p.review && p.review.due > 0 && (
+        <button type="button" onClick={p.onReview} className="mb-4 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400">
+          <Icon name="refresh" className="h-4 w-4" /> Réviser mes erreurs ({p.review.due})
+        </button>
       )}
 
-      {!p.compact && (p.daily || p.streak || p.challenge) && (
-        <section className="mb-4 flex flex-wrap items-center gap-3">
-          {p.streak && (
-            <span
-              className={`rounded-full px-3 py-1.5 text-sm font-bold ${p.streak.current > 0 ? 'bg-orange-500/20 text-orange-300' : 'bg-stone-800 text-stone-400'}`}
-              title={`Meilleure série : ${p.streak.best} jour(s)`}
-            >
-              <Icon name="flame" className="h-4 w-4" /> {p.streak.current} jour{p.streak.current > 1 ? 's' : ''} d’affilée
-              {!p.streak.playedToday && p.streak.current > 0 && ' · joue aujourd’hui pour la prolonger'}
-            </span>
-          )}
-          {p.daily && (
-            <button
-              type="button"
-              onClick={p.onDaily}
-              className="rounded-full bg-stone-800 px-3 py-1.5 text-sm font-semibold text-stone-100 hover:bg-stone-700"
-              title={p.daily.title}
-            >
-              <Icon name="pin" className="h-4 w-4" /> Puzzle du jour (Elo {p.daily.rating}){' '}
-              {p.daily.result === null ? '→ à jouer' : p.daily.result ? '✅ réussi' : '❌ raté (à revoir)'}
-            </button>
-          )}
-          {p.challenge && (
-            <button
-              type="button"
-              onClick={p.onChallenge}
-              className="rounded-full bg-sky-500/20 px-3 py-1.5 text-sm font-semibold text-sky-100 hover:bg-sky-500/30"
-              title="Les mêmes 10 finales pour tout le monde, du lundi au dimanche ; seule la première tentative compte"
-            >
-              <Icon name="flag" className="h-4 w-4" /> Défi de la semaine :{' '}
-              {p.challenge.played === 0
-                ? '10 finales → à jouer'
-                : p.challenge.played < p.challenge.total
-                  ? `${p.challenge.played}/${p.challenge.total} → continuer`
-                  : `✅ ${p.challenge.solved}/${p.challenge.total} réussies`}
-            </button>
-          )}
-        </section>
-      )}
-
-      {p.review && p.review.total > 0 && (
-        <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <div>
-            <div className="font-bold text-stone-50">
-              <Icon name="refresh" className="h-4 w-4 text-amber-300" /> Révision des erreurs :{' '}
-              {p.review.spaced
-                ? `${p.review.due} à revoir aujourd’hui`
-                : `${p.review.total} erreur${p.review.total > 1 ? 's' : ''} à retravailler`}
-            </div>
-            <div className="text-xs text-stone-400">
-              {p.review.spaced
-                ? `Répétition espacée : un puzzle raté revient après 1, 3, 7 puis 14 jours ; acquis après 4 réussites. ${p.review.total} en cours.`
-                : 'Toutes vos erreurs non acquises, dans un ordre varié.'}
-            </div>
-            <label className="mt-2 flex items-center gap-2 text-xs text-stone-300">
-              <input type="checkbox" checked={p.review.spaced} onChange={(e) => p.onSpaced(e.target.checked)} />
-              Répétition espacée
-            </label>
-          </div>
-          <button
-            type="button"
-            disabled={p.review.due === 0}
-            onClick={p.onReview}
-            className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400 disabled:opacity-40"
-          >
-            {p.review.due === 0 ? 'Rien à revoir aujourd’hui' : <><Icon name="play" className="h-4 w-4" /> Réviser</>}
-          </button>
-        </section>
-      )}
-
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Mode de jeu">
         {MODES.map((m) => (
           <button
             key={m.id}
             type="button"
             onClick={() => p.onMode(m.id)}
-            className={`rounded-xl p-4 text-left transition ${p.mode === m.id ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-100 hover:bg-stone-700'}`}
+            aria-pressed={p.mode === m.id}
+            className={`rounded-xl p-3 text-left transition sm:p-4 ${p.mode === m.id ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-100 hover:bg-stone-700'}`}
           >
-            <div className="flex items-center gap-2 text-2xl font-black">
+            <div className="flex flex-col items-center gap-1 text-sm font-black sm:flex-row sm:gap-2 sm:text-2xl">
               <Icon name={m.icon} className="h-6 w-6" /> {m.title}
             </div>
-            <div className={`mt-1 text-sm ${p.mode === m.id ? 'text-stone-800' : 'text-stone-400'}`}>{m.text}</div>
+            <div className={`mt-1 hidden text-sm sm:block ${p.mode === m.id ? 'text-stone-800' : 'text-stone-400'}`}>{m.text}</div>
           </button>
         ))}
       </section>
@@ -477,7 +524,7 @@ export function HomeScreen(p: Props) {
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-400">Thème</h2>
             <div className="flex flex-wrap gap-2">
               {THEMES.map((t) => (
-                <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
+                <button key={t.id} type="button" className={chip(p.theme === t.id)} aria-pressed={p.theme === t.id} onClick={() => p.onTheme(t.id)}>
                   {t.icon && <Icon name={t.icon} className="mr-1 h-4 w-4" />}
                   {t.label}
                 </button>
@@ -489,7 +536,7 @@ export function HomeScreen(p: Props) {
             )}
             {p.theme !== 'mix' && p.theme !== 'bases' && p.theme !== 'entraineur' && (
               <div className="mt-3 flex flex-wrap gap-2 border-l-2 border-stone-700 pl-3" aria-label="Sous-thèmes">
-                <button type="button" className={subChip(p.sub === 'all')} onClick={() => p.onSub('all')}>
+                <button type="button" className={subChip(p.sub === 'all')} aria-pressed={p.sub === 'all'} onClick={() => p.onSub('all')}>
                   Tous <Count n={p.counts.get(p.theme)} />
                 </button>
                 {SUBCATEGORIES.filter((s) => s.family === p.theme && (p.counts.get(s.id) ?? 0) >= CONFIG.minPuzzlesPerTheme).map((s) => (
@@ -497,7 +544,7 @@ export function HomeScreen(p: Props) {
                     key={s.id}
                     type="button"
                     title={s.title}
-                    className={subChip(p.sub === s.id)}
+                    className={subChip(p.sub === s.id)} aria-pressed={p.sub === s.id}
                     onClick={() => p.onSub(s.id)}
                   >
                     <span className="text-base leading-none">{s.label}</span> <Count n={p.counts.get(s.id)} />
@@ -506,7 +553,7 @@ export function HomeScreen(p: Props) {
                 <button
                   type="button"
                   disabled={(p.counts.get(`${p.theme}-autres`) ?? 0) < CONFIG.minPuzzlesPerTheme}
-                  className={subChip(p.sub === `${p.theme}-autres`)}
+                  className={subChip(p.sub === `${p.theme}-autres`)} aria-pressed={p.sub === `${p.theme}-autres`}
                   onClick={() => p.onSub(`${p.theme}-autres`)}
                 >
                   Autres <Count n={p.counts.get(`${p.theme}-autres`)} />
@@ -520,14 +567,19 @@ export function HomeScreen(p: Props) {
                 Motif <span className="font-normal normal-case text-stone-400">(facultatif)</span>
               </h2>
               <div className="flex flex-wrap gap-2" aria-label="Motifs">
-                <button type="button" className={subChip(p.motif === 'all')} onClick={() => p.onMotif('all')} aria-pressed={p.motif === 'all'}>
+                <button type="button" className={subChip(p.motif === 'all')} aria-pressed={p.motif === 'all'} onClick={() => p.onMotif('all')}>
                   Tous
                 </button>
-                {p.motifs.map((m) => (
-                  <button key={m.id} type="button" className={subChip(p.motif === m.id)} onClick={() => p.onMotif(m.id)} aria-pressed={p.motif === m.id}>
+                {(allMotifs ? p.motifs : p.motifs.filter((m, i) => i < 6 || m.id === p.motif)).map((m) => (
+                  <button key={m.id} type="button" className={subChip(p.motif === m.id)} aria-pressed={p.motif === m.id} onClick={() => p.onMotif(m.id)}>
                     {m.label} <Count n={m.n} />
                   </button>
                 ))}
+                {p.motifs.length > 6 && (
+                  <button type="button" className="rounded-lg px-2.5 py-1 text-sm font-semibold text-sky-400 hover:underline" aria-expanded={allMotifs} onClick={() => setAllMotifs((v) => !v)}>
+                    {allMotifs ? 'Moins' : `Plus (${p.motifs.length - 6})`}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -536,17 +588,17 @@ export function HomeScreen(p: Props) {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className={chip(p.startRating === null)}
+                className={chip(p.startRating === null)} aria-pressed={p.startRating === null}
                 onClick={() => p.onStartRating(null)}
                 title="Départ avec les exercices les plus faciles du thème ; la difficulté monte à chaque réussite"
               >
-                ⬆️ Automatique
+                Automatique
               </button>
               {CONFIG.startLevels.map((l) => (
                 <button
                   key={l.id}
                   type="button"
-                  className={chip(p.startRating === l.rating)}
+                  className={chip(p.startRating === l.rating)} aria-pressed={p.startRating === l.rating}
                   onClick={() => p.onStartRating(p.startRating === l.rating ? null : l.rating)}
                 >
                   {l.label} ({l.rating})
@@ -555,7 +607,7 @@ export function HomeScreen(p: Props) {
               {p.myLevel !== null && (
                 <button
                   type="button"
-                  className={chip(p.startRating === myStart(p.myLevel))}
+                  className={chip(p.startRating === myStart(p.myLevel))} aria-pressed={p.startRating === myStart(p.myLevel)}
                   onClick={() => p.onStartRating(p.startRating === myStart(p.myLevel!) ? null : myStart(p.myLevel!))}
                   title="Départ un peu sous votre Elo personnel pour ce thème"
                 >
@@ -565,7 +617,7 @@ export function HomeScreen(p: Props) {
             </div>
           </div>
           {/* Sur téléphone, « Jouer » reste collé en bas de l'écran. */}
-          <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-4 border-t border-stone-800 bg-stone-900/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          <div className={`sticky ${p.compact ? 'bottom-0' : 'bottom-16'} z-10 -mx-4 flex flex-wrap items-center gap-4 border-t border-stone-800 bg-stone-900/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none`}>
             <button
               type="button"
               disabled={!p.poolSize}
@@ -630,7 +682,7 @@ export function HomeScreen(p: Props) {
           return (
             <details key={g.id} open={gi === (firstOpen < 0 ? 0 : firstOpen)} className="mt-3 rounded-xl bg-stone-800/40 p-3">
               <summary className="cursor-pointer select-none font-semibold text-stone-100">
-                {g.label} <span className="text-sm text-stone-400">· {done}/{items.length}{done === items.length ? ' ✅' : ''}</span>
+                {g.label} <span className="text-sm text-stone-400">· {done}/{items.length}</span>{done === items.length && <Icon name="check" className="ml-1 h-4 w-4 text-emerald-300" label="thème terminé" />}
                 {exam?.passedAt ? (
                   <span className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-300" title={`Test réussi le ${new Date(exam.passedAt).toLocaleDateString('fr-FR')}`}>
                     <Icon name="medal" className="h-3.5 w-3.5" /> maîtrisé
@@ -658,7 +710,7 @@ export function HomeScreen(p: Props) {
                       className="flex h-full w-full flex-col gap-2 rounded-xl bg-stone-800 p-4 text-left transition hover:bg-stone-700"
                     >
                       <span className="font-semibold text-stone-50">
-                        {p.basicsDone.has(b.id) && <span title="Déjà réussie">✅ </span>}
+                        {p.basicsDone.has(b.id) && <Icon name="check" className="mr-1 h-4 w-4 text-emerald-300" label="déjà réussie" />}
                         {b.title}
                       </span>
                       <span className="text-lg text-stone-300" aria-label={materialSymbols(b.fen, sideToMove(b.fen)).label}>
@@ -702,7 +754,7 @@ export function HomeScreen(p: Props) {
           </p>
           <div className="flex flex-wrap gap-2">
             {THEMES.filter((t) => t.id !== 'bases' && t.id !== 'entraineur').map((t) => (
-              <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
+              <button key={t.id} type="button" className={chip(p.theme === t.id)} aria-pressed={p.theme === t.id} onClick={() => p.onTheme(t.id)}>
                 {t.icon && <Icon name={t.icon} className="mr-1 h-4 w-4" />}
                 {t.label}
               </button>
@@ -754,7 +806,7 @@ export function HomeScreen(p: Props) {
         )}
         {trainTab === 'entraineur' && (
         <section className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={p.onCoach} className="flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-left hover:bg-amber-500/20">
+          <button type="button" onClick={() => p.onCoach('groupe')} className="flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-left hover:bg-amber-500/20">
             <span className="text-lg font-bold text-stone-50">
               <Icon name="library" className="h-5 w-5 text-amber-300" /> Exercices de mon groupe
             </span>
@@ -764,7 +816,7 @@ export function HomeScreen(p: Props) {
             </span>
             <span className="mt-auto text-sm font-semibold text-amber-300">Importer mes PGN →</span>
           </button>
-          <button type="button" onClick={p.onCoach} className="flex flex-col gap-2 rounded-xl border border-stone-700 p-4 text-left hover:bg-stone-800">
+          <button type="button" onClick={() => p.onCoach('series')} className="flex flex-col gap-2 rounded-xl border border-stone-700 p-4 text-left hover:bg-stone-800">
             <span className="text-lg font-bold text-stone-50">
               <Icon name="link" className="h-5 w-5 text-amber-300" /> Séries par lien
             </span>
@@ -778,25 +830,6 @@ export function HomeScreen(p: Props) {
 
       {!p.compact && (
         <>
-        <section className="mt-8 flex flex-wrap items-center gap-2 text-sm" aria-label="Couleurs de l'échiquier">
-          <span className="text-stone-400"><Icon name="palette" className="h-4 w-4" /> Échiquier :</span>
-          {BOARD_THEMES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => pickBoard(t.id)}
-              aria-pressed={board === t.id}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold ${board === t.id ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-200 hover:bg-stone-700'}`}
-            >
-              <span
-                aria-hidden="true"
-                className="inline-block h-3.5 w-3.5 rounded-sm"
-                style={{ background: `linear-gradient(135deg, ${t.light} 50%, ${t.dark} 50%)` }}
-              />
-              {t.label}
-            </button>
-          ))}
-        </section>
         <footer className="mt-10 text-xs text-stone-400">
           Positions de parties réelles : base de puzzles Lichess (licence CC0). Jugement : table de finales Syzygy (API Lichess)
           et Stockfish. Échiquier : chessground (Lichess). Logiciel libre sous licence GPL v3.
@@ -804,6 +837,12 @@ export function HomeScreen(p: Props) {
             <button type="button" onClick={p.onPrivacy} className="text-sky-400 hover:underline">
               <Icon name="lock" className="h-4 w-4" /> Données personnelles
             </button>
+            <button type="button" onClick={p.onLegal} className="text-sky-400 hover:underline">
+              <Icon name="scale" className="h-4 w-4" /> Mentions légales
+            </button>
+            <a href="presentation.html" className="text-sky-400 hover:underline">
+              <Icon name="book" className="h-4 w-4" /> Présentation de l’appli
+            </a>
             {SOURCE_URL && (
               <a href={SOURCE_URL} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
                 <Icon name="code" className="h-4 w-4" /> Code source (GPL v3)
@@ -813,6 +852,7 @@ export function HomeScreen(p: Props) {
         </footer>
         </>
       )}
+      {!p.compact && <BottomNav p={p} />}
     </div>
   );
 }

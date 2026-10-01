@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { registerServiceWorker } from './services/updates';
-import { applyBoardTheme, getSettings } from './services/settings';
+import { applyAppearance, applyBoardTheme, getSettings } from './services/settings';
 
-applyBoardTheme(getSettings().boardTheme);
+const initial = getSettings();
+applyBoardTheme(initial.boardTheme);
+applyAppearance(initial.appearance, initial.largeDisplay);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

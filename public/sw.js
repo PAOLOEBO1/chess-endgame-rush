@@ -20,6 +20,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return; // autres sites : navigateur normal
 
   if (req.mode === 'navigate') {
+    // Seule l'appli elle-même est gardée pour le hors-ligne (pas la page de présentation).
+    if (!url.pathname.endsWith('/') && !url.pathname.endsWith('/index.html')) return;
     event.respondWith(
       fetch(req)
         .then((res) => {

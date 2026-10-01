@@ -5,6 +5,7 @@
 //  - Déjà installée (ouverte en plein écran) : rien n'est affiché.
 
 import { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -56,7 +57,7 @@ export function InstallButton() {
         className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
         title="Installer Chess Endgame Rush sur cet appareil"
       >
-        📲 Installer l’appli
+        <Icon name="phone" className="h-4 w-4" /> Installer l’appli
       </button>
     );
   }
@@ -69,7 +70,7 @@ export function InstallButton() {
           onClick={() => setHelp((v) => !v)}
           className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
         >
-          📲 Installer l’appli
+          <Icon name="phone" className="h-4 w-4" /> Installer l’appli
         </button>
         {help && (
           <p className="absolute right-0 z-10 mt-2 w-64 rounded-lg bg-stone-950 p-3 text-xs text-stone-200 shadow-lg ring-1 ring-stone-700">

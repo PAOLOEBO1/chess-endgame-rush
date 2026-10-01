@@ -2,6 +2,7 @@
 // authentification (TOTP), synchronisation, déconnexion, suppression.
 
 import { useCallback, useState, type FormEvent, type ReactNode } from 'react';
+import { Icon } from './Icon';
 import type { CloudAccount } from '../hooks/useCloudAccount';
 import { turnstileSiteKey } from '../services/cloud';
 import { linkedUser } from '../services/sync';
@@ -106,7 +107,7 @@ export function AccountPanel({ account, playerId, playerName, linkedName, onSele
     return (
       <Box>
         <p className="text-sm text-stone-200">
-          ☁ Connecté : <strong>{a.email}</strong>
+          <Icon name="cloud" className="h-4 w-4 text-sky-300" /> Connecté : <strong>{a.email}</strong>
           {linked && playerName && <> · profil du compte : <strong>{playerName}</strong></>}
         </p>
         {a.linkChoice && (
@@ -168,12 +169,12 @@ export function AccountPanel({ account, playerId, playerName, linkedName, onSele
 
         <details className="rounded-lg bg-stone-900/60 p-3">
           <summary className="cursor-pointer text-sm font-semibold text-stone-200">
-            🔐 Double authentification {a.totpFactors.length ? '(activée)' : '(recommandée)'}
+            <Icon name="lock" className="h-4 w-4" /> Double authentification {a.totpFactors.length ? '(activée)' : '(recommandée)'}
           </summary>
           <div className="mt-2 flex flex-col gap-2 text-sm text-stone-300">
             {a.totpFactors.map((f) => (
               <div key={f.id} className="flex items-center gap-2">
-                ✅ Application d’authentification active
+                <Icon name="check" className="h-4 w-4 text-emerald-300" /> Application d’authentification active
                 <button type="button" className={secondary} disabled={a.busy} onClick={() => a.disableMfa(f.id)}>
                   Désactiver
                 </button>
@@ -217,7 +218,7 @@ export function AccountPanel({ account, playerId, playerName, linkedName, onSele
             </button>
             {confirmDelete === null ? (
               <button type="button" className="self-start text-sm text-red-400 hover:underline" onClick={() => setConfirmDelete('')}>
-                🗑 Supprimer mon compte en ligne…
+                <Icon name="trash" className="h-4 w-4" /> Supprimer mon compte en ligne…
               </button>
             ) : (
               <form className="flex flex-col gap-2" onSubmit={submit(() => a.deleteAccount(confirmDelete))}>
@@ -327,7 +328,7 @@ function PasswordBox({ show, onToggle, children }: { show: boolean; onToggle: ()
         aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
         title={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
       >
-        {show ? '🙈' : '👁'}
+        <Icon name={show ? 'eyeOff' : 'eye'} className="h-4 w-4" />
       </button>
     </div>
   );
@@ -351,7 +352,7 @@ export function LeaderboardOptIn({ account: a, standalone = false }: { account: 
   return (
     <details className="rounded-lg bg-stone-900/60 p-3" open={standalone || !current.leaderboard}>
       <summary className="cursor-pointer text-sm font-semibold text-stone-200">
-        🏆 Classement {current.leaderboard ? `(vous y figurez : ${current.pseudo})` : '(non affiché)'}
+        <Icon name="trophy" className="h-4 w-4" /> Classement {current.leaderboard ? `(vous y figurez : ${current.pseudo})` : '(non affiché)'}
       </summary>
       <div className="mt-2 flex flex-col gap-2 text-sm text-stone-300">
         <p>

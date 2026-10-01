@@ -61,7 +61,7 @@ export function ExamScreen({ label, titles, results, record, onRetry, onTrain, o
         {titles.map((t, i) => (
           <li key={i} className="flex items-center justify-between gap-3 rounded-lg bg-stone-800 px-4 py-2">
             <span className="text-stone-100">
-              {results[i] === true ? '✅' : '❌'} {t}
+              <Icon name={results[i] === true ? 'check' : 'cross'} className={`h-4 w-4 ${results[i] === true ? 'text-emerald-300' : 'text-red-300'}`} label={results[i] === true ? 'réussi' : 'raté'} /> {t}
             </span>
             {results[i] !== true && (
               <button type="button" onClick={() => onTrain(i)} className="shrink-0 rounded-lg bg-stone-700 px-3 py-1 text-sm font-semibold text-stone-100 hover:bg-stone-600">

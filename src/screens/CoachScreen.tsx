@@ -10,7 +10,7 @@ import { sideToMove } from '../core/fen';
 import { encodeSeries, parseBulk, SERIES_MAX, type SeriesItem } from '../core/series';
 import type { Puzzle } from '../core/types';
 import { Diagram } from '../components/board/Diagram';
-import { Icon } from '../components/Icon';
+import { Icon, type IconName } from '../components/Icon';
 import { CoachBasePanel } from '../components/CoachBasePanel';
 import type { Engine } from '../services/stockfish';
 import { BASICS_GROUPS } from '../data/puzzlesMock';
@@ -25,11 +25,26 @@ interface Props {
   signedIn: boolean;
   onAccount: () => void;
   engine: Pick<Engine, 'analyse'>;
+  /** Onglet ouvert à l'arrivée (sinon le dernier consulté). */
+  initialTab?: CoachTab;
 }
 
 const LIBRARY_MAX = 50;
 
-export function CoachScreen({ basics, judge, onHome, signedIn, onAccount, engine }: Props) {
+export type CoachTab = 'groupe' | 'suivi' | 'series';
+const COACH_TABS: { id: CoachTab; label: string; icon: IconName }[] = [
+  { id: 'groupe', label: 'Mon groupe', icon: 'library' },
+  { id: 'suivi', label: 'Suivi des élèves', icon: 'users' },
+  { id: 'series', label: 'Séries par lien', icon: 'link' },
+];
+let lastCoachTab: CoachTab = 'groupe';
+
+export function CoachScreen({ basics, judge, onHome, signedIn, onAccount, engine, initialTab }: Props) {
+  const [tab, setTab] = useState<CoachTab>(initialTab ?? lastCoachTab);
+  const pickTab = (t: CoachTab) => {
+    lastCoachTab = t;
+    setTab(t);
+  };
   const [name, setName] = useState('');
   const [items, setItems] = useState<SeriesItem[]>([]);
   const [fen, setFen] = useState('');
@@ -200,14 +215,35 @@ export function CoachScreen({ basics, judge, onHome, signedIn, onAccount, engine
     <>
       <div className="mx-auto flex max-w-4xl flex-col gap-5 px-4 py-6 print:hidden">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="board" className="h-6 w-6 text-amber-300" /> Créer une série pour tes élèves</h1>
+          <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="board" className="h-6 w-6 text-amber-300" /> Espace entraîneur</h1>
           <button type="button" onClick={onHome} className="text-sm text-stone-400 hover:text-stone-100">
             ← Accueil
           </button>
         </div>
-        <CoachBasePanel signedIn={signedIn} onAccount={onAccount} engine={engine} />
-
-        <h2 className="mt-2 text-lg font-bold text-stone-50">Séries de positions à partager par lien</h2>
+        <div role="tablist" aria-label="Espace entraîneur" className="flex flex-wrap gap-2 border-b border-stone-800 pb-3">
+          {COACH_TABS.map((t) => (
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls={`panel-${t.id}`}
+              onClick={() => pickTab(t.id)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${tab === t.id ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-200 hover:bg-stone-700'}`}
+            >
+              <Icon name={t.icon} className="mr-1 h-4 w-4" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {tab !== 'series' ? (
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+            <CoachBasePanel signedIn={signedIn} onAccount={onAccount} engine={engine} view={tab === 'suivi' ? 'suivi' : 'base'} />
+          </div>
+        ) : (
+        <div role="tabpanel" id="panel-series" aria-labelledby="tab-series" className="flex flex-col gap-5">
+        <h2 className="text-lg font-bold text-stone-50">Séries de positions à partager par lien</h2>
         <p className="text-sm text-stone-400">
           Choisis des positions, puis envoie le lien ou imprime la fiche. Tes élèves jouent la série et te renvoient leur résultat en un
           clic. La série tient dans le lien ; ta bibliothèque suit ton compte.
@@ -355,6 +391,8 @@ export function CoachScreen({ basics, judge, onHome, signedIn, onAccount, engine
               ))}
             </ul>
           </section>
+        )}
+        </div>
         )}
       </div>
 

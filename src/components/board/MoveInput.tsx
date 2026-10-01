@@ -2,6 +2,7 @@
 // notation algébrique anglaise (Nf3, e4, O-O) ou cases (e2e4).
 
 import { useState } from 'react';
+import { Icon } from '../Icon';
 import { parseMoveText } from '../../core/chessRules';
 import type { PromotionPiece } from '../../core/types';
 
@@ -31,7 +32,7 @@ export function MoveInput({ fen, enabled, onMove }: Props) {
       }}
     >
       <label htmlFor="move-input" className="text-stone-400">
-        ⌨️ Coup :
+        <Icon name="keyboard" className="h-4 w-4" /> Coup :
       </label>
       <input
         id="move-input"

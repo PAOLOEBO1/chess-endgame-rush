@@ -2,6 +2,7 @@
 // temps sont dans core/rush/rushRules.ts ; ici, uniquement l'orchestration.
 
 import type { ErrorType } from '../core/errorTypes';
+import { Icon } from '../components/Icon';
 import type { PlayedExercise, SolveInfo } from '../core/history';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PuzzleRunner, type PuzzleEnd } from '../components/PuzzleRunner';
@@ -278,11 +279,11 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           judge={judge}
           onEnd={onEnd}
           onPlayerMove={onPlayerMove}
-          banner={waiting ? (mode === 'storm' ? '⏱ Le chrono démarre à ton premier coup.' : '🔥 Joue ton premier coup pour commencer la série.') : null}
+          banner={waiting ? (mode === 'storm' ? 'Le chrono démarre à ton premier coup.' : 'Joue ton premier coup pour commencer la série.') : null}
         />
         {engineDown && (
           <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-200" role="status">
-            ⚠️ Le moteur Stockfish ne se charge pas sur cet appareil : la partie continue avec les finales de 7 pièces au plus,
+            <Icon name="warning" className="h-4 w-4" /> Le moteur Stockfish ne se charge pas sur cet appareil : la partie continue avec les finales de 7 pièces au plus,
             jugées par la table de finales.
           </p>
         )}
@@ -363,11 +364,11 @@ function ResultPanel({
   const best = solved.length ? Math.max(...solved.map((h) => h.rating)) : null;
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4" data-testid="result">
-      <h2 className="text-xl font-bold text-stone-50">{rush.mode === 'storm' ? '⏱ Temps écoulé !' : '💥 Série terminée'}</h2>
+      <h2 className="text-xl font-bold text-stone-50"><Icon name={rush.mode === 'storm' ? 'timer' : 'flame'} className="h-5 w-5 text-amber-300" /> {rush.mode === 'storm' ? 'Temps écoulé !' : 'Série terminée'}</h2>
       {problem && <p className="text-sm text-amber-300">{problem}</p>}
       <p className="text-stone-200">
         Score : <strong className="text-2xl text-amber-400">{rush.score}</strong>
-        {result?.isRecord && <span className="ml-2 font-semibold text-emerald-400">🎉 Nouveau record !</span>}
+        {result?.isRecord && <span className="ml-2 font-semibold text-emerald-400"><Icon name="party" className="h-4 w-4" /> Nouveau record !</span>}
         {!result?.isRecord && result?.previous && <span className="ml-2 text-stone-400">(record : {result.previous.score})</span>}
       </p>
       <p className="text-sm text-stone-400">
@@ -377,7 +378,7 @@ function ResultPanel({
       <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
         {rush.history.map((h, i) => (
           <li key={i} className="flex items-center gap-2">
-            <span>{h.success ? '✅' : '❌'}</span>
+            <Icon name={h.success ? 'check' : 'cross'} className={`h-4 w-4 ${h.success ? 'text-emerald-300' : 'text-red-300'}`} label={h.success ? 'réussi' : 'raté'} />
             <span className="text-stone-300">
               {h.title} · {h.rating}
             </span>
@@ -397,17 +398,17 @@ function ResultPanel({
       {advice && (
         <div className="flex flex-col gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-stone-200" role="note">
           <p>
-            🎯 <strong>{advice.errors} erreurs en {FAMILY_LABEL[advice.family].toLowerCase()}</strong> : {advice.text}
+            <Icon name="target" className="h-4 w-4 text-sky-300" /> <strong>{advice.errors} erreurs en {FAMILY_LABEL[advice.family].toLowerCase()}</strong> : {advice.text}
           </p>
           <div className="flex flex-wrap gap-2">
             {advice.lessonId && onLesson && (
               <button type="button" onClick={() => onLesson(advice.lessonId!)} className="rounded-lg bg-sky-500 px-3 py-1.5 font-bold text-stone-900 hover:bg-sky-400">
-                🎓 Voir la leçon
+                <Icon name="cap" className="h-4 w-4" /> Voir la leçon
               </button>
             )}
             {onFocusFamily && themeIsFamily !== advice.family && (
               <button type="button" onClick={() => onFocusFamily(advice.family)} className="rounded-lg bg-stone-700 px-3 py-1.5 font-semibold text-stone-100 hover:bg-stone-600">
-                ⚡ Storm sur ce thème
+                <Icon name="bolt" className="h-4 w-4" /> Storm sur ce thème
               </button>
             )}
           </div>
@@ -419,12 +420,12 @@ function ResultPanel({
           onClick={() => onReview(failedIds)}
           className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-amber-300 hover:bg-stone-600"
         >
-          🔁 Revoir mes {failedIds.length} erreur{failedIds.length > 1 ? 's' : ''} sans chrono
+          <Icon name="refresh" className="h-4 w-4" /> Revoir mes {failedIds.length} erreur{failedIds.length > 1 ? 's' : ''} sans chrono
         </button>
       )}
       {onJoinLeaderboard && rush.score > 0 && (
         <p className="text-sm text-stone-300">
-          🏆 Tes scores n’apparaissent pas encore au classement public.{' '}
+          <Icon name="trophy" className="h-4 w-4 text-amber-300" /> Tes scores n’apparaissent pas encore au classement public.{' '}
           <button type="button" onClick={onJoinLeaderboard} className="font-semibold text-sky-400 hover:underline">
             Comment y figurer ?
           </button>

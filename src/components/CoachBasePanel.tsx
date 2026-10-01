@@ -22,6 +22,8 @@ interface Props {
   signedIn: boolean;
   onAccount: () => void;
   engine: Pick<Engine, 'analyse'>;
+  /** « base » : import et partage ; « suivi » : résultats des élèves. */
+  view?: 'base' | 'suivi';
 }
 
 /** Temps de réflexion croissants : le palier où Stockfish trouve le 1er coup mesure la difficulté. */
@@ -29,7 +31,7 @@ const TIERS_MS = [30, 120, 400, 1500];
 
 type Parsed = { drafts: CoachDraft[]; skipped: string[] };
 
-export function CoachBasePanel({ signedIn, onAccount, engine }: Props) {
+export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: Props) {
   const [set, setSet] = useState<CoachSet | null>(null);
   const [loading, setLoading] = useState(signedIn);
   const [parsed, setParsed] = useState<Parsed | null>(null);
@@ -158,6 +160,23 @@ export function CoachBasePanel({ signedIn, onAccount, engine }: Props) {
   const input = 'rounded-lg bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500';
   const busy = progress !== null;
 
+  if (view === 'suivi') {
+    return !signedIn ? (
+      <p className="text-sm text-stone-300">
+        Le suivi est réservé à l’entraîneur connecté.{' '}
+        <button type="button" onClick={onAccount} className="font-semibold text-sky-400 hover:underline">
+          Me connecter →
+        </button>
+      </p>
+    ) : loading ? (
+      <p className="text-sm text-stone-400">Chargement…</p>
+    ) : set ? (
+      <CoachProgressPanel items={set.items} version={set.updatedAt} />
+    ) : (
+      <p className="text-sm text-stone-400">Importe d’abord tes exercices (onglet « Mon groupe ») et envoie le lien à tes élèves.</p>
+    );
+  }
+
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-stone-800/60 p-4">
       <h2 className="font-bold text-stone-50">
@@ -212,7 +231,6 @@ export function CoachBasePanel({ signedIn, onAccount, engine }: Props) {
               <input readOnly value={link} onFocus={(e) => e.target.select()} className={`${input} font-mono text-xs`} aria-label="Lien du groupe" />
             </div>
           )}
-          {set && <CoachProgressPanel items={set.items} version={set.updatedAt} />}
 
           <div className="flex flex-col gap-2">
             <button type="button" disabled={busy} onClick={() => fileInput.current?.click()} className="self-start rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600 disabled:opacity-40">

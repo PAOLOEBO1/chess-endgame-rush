@@ -38,7 +38,7 @@ import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' };
 
 const embed = readEmbedOptions();
 
@@ -47,6 +47,7 @@ const loadProgress = () => import('./screens/ProgressScreen');
 const loadPrivacy = () => import('./screens/PrivacyScreen');
 const loadLeaderboard = () => import('./screens/LeaderboardScreen');
 const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ default: m.CoachScreen })));
+import type { CoachTab } from './screens/CoachScreen';
 const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
 const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
 const HelpScreen = lazy(() => import('./screens/HelpScreen').then((m) => ({ default: m.HelpScreen })));
@@ -56,6 +57,7 @@ const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) 
 const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
 const ProgressScreen = lazy(() => loadProgress().then((m) => ({ default: m.ProgressScreen })));
 const PrivacyScreen = lazy(() => loadPrivacy().then((m) => ({ default: m.PrivacyScreen })));
+const LegalScreen = lazy(() => import('./screens/LegalScreen').then((m) => ({ default: m.LegalScreen })));
 // … puis préchargés quelques secondes après l'ouverture (et gardés pour l'usage hors ligne).
 if (typeof window !== 'undefined')
   window.setTimeout(() => {
@@ -114,7 +116,16 @@ const SERIES_PUZZLES: Puzzle[] = (SERIES?.items ?? []).map((it, i) =>
 );
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>(SERIES ? { name: 'series' } : { name: 'home' });
+  const [screen, setScreen] = useState<Screen>(() => {
+    if (SERIES) return { name: 'series' };
+    // Liens de la page de présentation.
+    const hash = typeof window === 'undefined' ? '' : window.location.hash;
+    if (hash === '#mentions-legales' || hash === '#donnees-personnelles') {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      return { name: hash === '#mentions-legales' ? 'legal' : 'privacy' };
+    }
+    return { name: 'home' };
+  });
   // Présentation au tout premier lancement (aucun profil sur l'appareil, hors intégration et lien de série).
   const [welcome, setWelcome] = useState(() => !embed.embed && !SERIES && !getSettings().welcomed && playerStore.listPlayers().length === 0);
   const closeWelcome = useCallback(() => {
@@ -498,6 +509,9 @@ export default function App() {
   if (screen.name === 'privacy') {
     return shell(<PrivacyScreen onHome={() => setScreen({ name: 'home' })} />);
   }
+  if (screen.name === 'legal') {
+    return shell(<LegalScreen onHome={() => setScreen({ name: 'home' })} onPrivacy={() => setScreen({ name: 'privacy' })} />);
+  }
 
   if (screen.name === 'lesson') {
     const lesson = LESSONS.find((l) => l.id === screen.id);
@@ -571,8 +585,8 @@ export default function App() {
         backLabel="← Arrêter la révision"
         header={
           screen.maintenance
-            ? `🔄 Entretien des acquis · ${screen.index + 1}/${screen.ids.length} — une position déjà réussie, à rejouer pour ne pas l’oublier`
-            : `🔁 Révision des erreurs · ${screen.index + 1}/${screen.ids.length} — sans chrono, la flèche montre le bon coup en cas d'erreur`
+            ? `Entretien des acquis · ${screen.index + 1}/${screen.ids.length} — une position déjà réussie, à rejouer pour ne pas l’oublier`
+            : `Révision des erreurs · ${screen.index + 1}/${screen.ids.length} — sans chrono, la flèche montre le bon coup en cas d'erreur`
         }
         onAttempt={onReviewAttempt}
         onHome={() => setScreen({ name: 'home' })}
@@ -630,7 +644,7 @@ export default function App() {
           onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
           exam
           backLabel="← Abandonner le test"
-          header={`🎓 Test de maîtrise — ${g.label} · ${i + 1}/${g.ids.length}`}
+          header={`Test de maîtrise — ${g.label} · ${i + 1}/${g.ids.length}`}
           onAttempt={(p, ok, e, sv) => {
             if (examResults[i] !== null) return;
             setExamResults((r) => r.map((x, j) => (j === i ? ok : x)));
@@ -669,6 +683,7 @@ export default function App() {
         signedIn={!!account.session && !account.needMfa}
         onAccount={() => setScreen({ name: 'progress' })}
         onHome={() => setScreen({ name: 'home' })}
+        initialTab={screen.tab}
       />,
     );
   }
@@ -696,7 +711,7 @@ export default function App() {
         judge={judge}
         onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         backLabel="← La série"
-        header={`🧑‍🏫 ${SERIES!.name} — seule ta 1re tentative compte`}
+        header={`${SERIES!.name} — seule ta 1re tentative compte`}
         onAttempt={(p, ok, e, sv) => {
           if (seriesResults[i] !== null) return;
           setSeriesResults((r) => r.map((x, j) => (j === i ? ok : x)));
@@ -720,7 +735,7 @@ export default function App() {
         onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         rules={rushRules(c.solution)}
         backLabel="← Accueil"
-        header={`🏁 Défi de la semaine ${challenge.week.split('-S')[1]} — le même pour tous · ${
+        header={`Défi de la semaine ${challenge.week.split('-S')[1]} — le même pour tous · ${
           already === undefined ? 'seule ta 1re tentative compte' : `déjà joué (${already ? 'réussi' : 'raté'}) : cet essai ne compte pas`
         }`}
         onAttempt={onChallengeAttempt}
@@ -741,7 +756,7 @@ export default function App() {
         onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         rules={rushRules(d.solution)}
         backLabel="← Accueil"
-        header={`📌 Puzzle du jour — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} · le même pour tous`}
+        header={`Puzzle du jour — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} · le même pour tous`}
         onAttempt={onDailyAttempt}
         onHome={() => setScreen({ name: 'home' })}
         onNext={() => setScreen({ name: 'home' })}
@@ -761,7 +776,7 @@ export default function App() {
           onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
           rules={TECHNIQUE_RULES}
           backLabel="← Accueil"
-          header="🛠️ Technique — jouer jusqu’au bout contre la table de finales : mat, ou nulle tenue 20 coups"
+          header="Technique — jouer jusqu’au bout contre la table de finales : mat, ou nulle tenue 20 coups"
           onAttempt={onTrainingAttempt}
           onHome={() => setScreen({ name: 'home' })}
           onNext={() => nextTechnique(screen.n + 1)}
@@ -794,7 +809,7 @@ export default function App() {
         position={{ index: screen.index, total: BASICS.length }}
         judge={judge}
         onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
-        header="🛡️ L’autre camp : l’ordinateur attaque avec la meilleure méthode, défends le plus longtemps possible"
+        header="L’autre camp : l’ordinateur attaque avec la meilleure méthode, défends le plus longtemps possible"
         backLabel="← Retour à la position"
         onAttempt={onTrainingAttempt}
         onHome={() => setScreen({ name: 'training', index: screen.index })}
@@ -858,6 +873,7 @@ export default function App() {
       onSelectPlayer={changePlayer}
       onProgress={(stats) => setScreen({ name: 'progress', stats })}
       onPrivacy={() => setScreen({ name: 'privacy' })}
+      onLegal={() => setScreen({ name: 'legal' })}
       onHelp={() => setScreen({ name: 'help' })}
       review={playerId && lichess ? { due: reviewDue.length, total: reviewAll.length, spaced } : null}
       onReview={() => startReview(reviewDue.map((i) => i.id))}
@@ -876,7 +892,7 @@ export default function App() {
       }}
       onTechnique={() => nextTechnique(0)}
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
-      onCoach={() => setScreen({ name: 'coach' })}
+      onCoach={(tab) => setScreen({ name: 'coach', tab })}
       coachGroup={coachSet ? { name: coachSet.name, count: coachSet.items.length, updatedAt: coachSet.updatedAt, code: coachSet.code } : null}
       onJoinGroup={joinGroup}
       onLeaveGroup={() => {

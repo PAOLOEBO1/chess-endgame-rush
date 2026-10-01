@@ -17,6 +17,10 @@ interface Settings {
   lastStart: number | null;
   /** Couleurs de l'échiquier. */
   boardTheme: BoardTheme;
+  /** Apparence de l'interface (auto = celle de l'appareil). */
+  appearance: Appearance;
+  /** Grand affichage (projection en club, lecture de loin). */
+  largeDisplay: boolean;
   /** Onglet ouvert dans l'accueil Entraînement. */
   trainingTab: TrainTab;
   /** Présentation du premier lancement déjà vue. */
@@ -39,13 +43,41 @@ export const BOARD_THEMES: { id: BoardTheme; label: string; light: string; dark:
   { id: 'contrast', label: 'Contraste', light: '#f5f5f5', dark: '#4a6f8f' },
 ];
 
+export type Appearance = 'dark' | 'light' | 'auto';
+export const APPEARANCES: { id: Appearance; label: string }[] = [
+  { id: 'dark', label: 'Sombre' },
+  { id: 'light', label: 'Clair' },
+  { id: 'auto', label: 'Comme l’appareil' },
+];
+
+let followSystem: (() => void) | null = null;
+/** Applique l'apparence (sombre / clair / celle de l'appareil) et le grand affichage. */
+export function applyAppearance(appearance: Appearance, large: boolean): void {
+  const root = document.documentElement;
+  const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: light)') : null;
+  if (followSystem && media) media.removeEventListener('change', followSystem);
+  followSystem = null;
+  const set = () => {
+    const light = appearance === 'light' || (appearance === 'auto' && !!media?.matches);
+    root.setAttribute('data-theme', light ? 'light' : 'dark');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f5f5f4' : '#1c1917');
+  };
+  set();
+  if (appearance === 'auto' && media) {
+    followSystem = set;
+    media.addEventListener('change', set);
+  }
+  if (large) root.setAttribute('data-display', 'large');
+  else root.removeAttribute('data-display');
+}
+
 /** Applique le thème d'échiquier à la page. */
 export function applyBoardTheme(theme: BoardTheme): void {
   if (theme === 'brown') document.documentElement.removeAttribute('data-board');
   else document.documentElement.setAttribute('data-board', theme);
 }
 
-const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastMotif: null, lastStart: null, boardTheme: 'brown', trainingTab: 'bases', welcomed: false, exams: {}, seriesLibrary: [] };
+const DEFAULTS: Settings = { spacedRepetition: true, lastMode: null, lastTheme: null, lastSub: null, lastMotif: null, lastStart: null, boardTheme: 'brown', appearance: 'dark', largeDisplay: false, trainingTab: 'bases', welcomed: false, exams: {}, seriesLibrary: [] };
 
 export function getSettings(): Settings {
   try {

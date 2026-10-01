@@ -160,7 +160,7 @@ const TIPS = [
   'Jouer au clavier : tape le coup en notation anglaise (Rd8, e4, Kd2) sous l’échiquier.',
   'Installer l’appli : bouton « Installer » dans l’en-tête, ou « Ajouter à l’écran d’accueil » du navigateur.',
   'Hors ligne : l’appli fonctionne sans connexion ; ce que tu joues est envoyé au retour du réseau.',
-  'Couleurs de l’échiquier : en bas de l’accueil.',
+  'Réglages (roue dentée en haut à droite) : son, apparence claire ou sombre, grand affichage pour projeter au club, couleurs de l’échiquier, répétition espacée.',
 ];
 
 export function HelpScreen({ onHome, onGo }: { onHome: () => void; onGo: (target: GuideTarget) => void }) {
