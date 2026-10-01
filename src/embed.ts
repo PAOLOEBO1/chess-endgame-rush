@@ -21,7 +21,7 @@ export interface EmbedOptions {
 }
 
 const MODES = new Set(['storm', 'streak', 'training']);
-const THEMES = new Set(['mix', 'bases', 'pions', 'tours', 'dames', 'fous', 'cavaliers', 'mixte']);
+const THEMES = new Set(['mix', 'bases', 'pions', 'tours', 'dames', 'fous', 'cavaliers', 'mixte', 'entraineur']);
 
 export function readEmbedOptions(search: string = window.location.search): EmbedOptions {
   const params = new URLSearchParams(search);

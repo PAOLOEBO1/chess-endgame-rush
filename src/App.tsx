@@ -28,6 +28,8 @@ import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
+import { cachedGroupSet, fetchGroupSet, forgetGroupSet, type CoachSet } from './services/coachSets';
+import { coachPuzzles } from './core/coachSet';
 import { scheduleUserDataSync, USER_DATA_EVENT } from './services/userDataSync';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
@@ -86,6 +88,9 @@ function buildPool(theme: ThemeChoice, sub: string, lichess: Puzzle[]): Puzzle[]
   if (theme === 'mix') return lichess;
   return lichess.filter((p) => p.family === theme && (sub === 'all' || p.subcategory === sub));
 }
+
+/** Groupe d'entraîneur reçu par lien (#groupe=CODE), lu une fois au chargement. */
+const GROUP_LINK = typeof window === 'undefined' ? null : (/^#groupe=([A-Za-z0-9]{8})$/.exec(window.location.hash)?.[1]?.toUpperCase() ?? null);
 
 /** Série d'entraîneur reçue par lien (#serie=…), lue une fois au chargement. */
 const SERIES: Series | null = typeof window === 'undefined' ? null : decodeSeries(window.location.hash, (id) => BASICS.some((b) => b.id === id));
@@ -156,7 +161,40 @@ export default function App() {
 
   // Sous-thème trop pauvre (< minPuzzlesPerTheme, ex. lien ▶ ou intégration) : on joue toute la famille.
   const effSub = sub === 'all' || !lichess || (counts.get(sub) ?? 0) >= CONFIG.minPuzzlesPerTheme ? sub : 'all';
-  const pool = useMemo(() => (lichess ? buildPool(theme, effSub, lichess) : null), [theme, effSub, lichess]);
+  // --- Groupe d'entraîneur : ses exercices forment le thème « Entraîneur » -------
+  const [coachSet, setCoachSet] = useState<CoachSet | null>(() => cachedGroupSet());
+  const coachPool = useMemo(() => (coachSet ? coachPuzzles(coachSet.code, coachSet.items).map(classify) : []), [coachSet]);
+  const joinGroup = useCallback(async (code: string): Promise<string | null> => {
+    try {
+      const set = await fetchGroupSet(code);
+      if (!set) return 'Code inconnu : vérifie-le auprès de ton entraîneur.';
+      setCoachSet(set);
+      return null;
+    } catch {
+      return 'Groupe indisponible pour le moment (connexion). Réessaie plus tard.';
+    }
+  }, []);
+  useEffect(() => {
+    // Lien #groupe=CODE : rejoindre et ouvrir le thème ; sinon, mise à jour silencieuse du groupe déjà rejoint.
+    const code = GROUP_LINK ?? coachSet?.code;
+    if (!code) return;
+    if (GROUP_LINK) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      setTheme('entraineur');
+      setMode((m) => (m === 'training' ? 'storm' : m));
+    }
+    fetchGroupSet(code)
+      .then((set) => set && setCoachSet(set))
+      .catch(() => {
+        /* hors ligne : copie locale */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une fois à l'ouverture
+  }, []);
+
+  const pool = useMemo(
+    () => (theme === 'entraineur' ? coachPool : lichess ? buildPool(theme, effSub, lichess) : null),
+    [theme, effSub, lichess, coachPool],
+  );
   const themeKey = effSub === 'all' ? theme : `${theme}/${effSub}`;
   const autoStart = useMemo(() => {
     if (!pool?.length) return CONFIG.startLevels[0].rating;
@@ -209,7 +247,11 @@ export default function App() {
     },
     [ensurePlayer],
   );
-  const onRushAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, mode === 'streak' ? 'streak' : 'storm', e), [onAttempt, mode]);
+  // Exercices d'entraîneur : Elo seulement estimé, donc hors Elo personnel et classement Elo (comptés comme entraînement).
+  const onRushAttempt = useCallback(
+    (p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, p.collection === 'coach' ? 'training' : mode === 'streak' ? 'streak' : 'storm', e),
+    [onAttempt, mode],
+  );
   const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, 'training', e), [onAttempt]);
   const onRunEnd = useCallback(
     (run: Omit<Run, 't'>) => {
@@ -234,7 +276,7 @@ export default function App() {
   );
 
   // --- Révision des erreurs -------------------------------------------------
-  const puzzlesById = useMemo(() => new Map([...BASICS, ...(lichess ?? [])].map((p) => [p.id, p])), [lichess]);
+  const puzzlesById = useMemo(() => new Map([...BASICS, ...coachPool, ...(lichess ?? [])].map((p) => [p.id, p])), [lichess, coachPool]);
   const [spaced, setSpaced] = useState(() => getSettings().spacedRepetition);
   const reviewAll = useMemo(
     () => (playerId ? reviewItems(playerStore.history(playerId).attempts).filter((i) => puzzlesById.has(i.id)) : []),
@@ -309,7 +351,7 @@ export default function App() {
   const myLevel = useMemo(() => {
     if (!playerId) return null;
     const ratings = ratingsByKey(playerStore.history(playerId).attempts);
-    const key = theme === 'mix' || theme === 'bases' ? 'all' : effSub !== 'all' ? `c:${effSub}` : `f:${theme}`;
+    const key = theme === 'mix' || theme === 'bases' || theme === 'entraineur' ? 'all' : effSub !== 'all' ? `c:${effSub}` : `f:${theme}`;
     const r = ratings.get(key);
     return r && !r.provisional ? r.r : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -494,7 +536,7 @@ export default function App() {
         position={{ index: screen.index, total: screen.ids.length }}
         judge={judge}
         onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
-        rules={reviewFull.has(id) ? (puzzle.collection === 'bases' ? TRAINING_RULES : TECHNIQUE_RULES) : puzzle.solution ? rushRules(puzzle.solution) : TRAINING_RULES}
+        rules={reviewFull.has(id) && puzzle.collection !== 'coach' ? (puzzle.collection === 'bases' ? TRAINING_RULES : TECHNIQUE_RULES) : puzzle.solution ? rushRules(puzzle.solution) : TRAINING_RULES}
         backLabel="← Arrêter la révision"
         header={
           screen.maintenance
@@ -568,7 +610,16 @@ export default function App() {
   }
 
   if (screen.name === 'coach') {
-    return shell(<CoachScreen basics={BASICS} judge={judge} onHome={() => setScreen({ name: 'home' })} />);
+    return shell(
+      <CoachScreen
+        basics={BASICS}
+        judge={judge}
+        engine={stockfish}
+        signedIn={!!account.session && !account.needMfa}
+        onAccount={() => setScreen({ name: 'progress' })}
+        onHome={() => setScreen({ name: 'home' })}
+      />,
+    );
   }
 
   if (screen.name === 'series' && SERIES) {
@@ -763,6 +814,12 @@ export default function App() {
       onTechnique={() => nextTechnique(0)}
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
       onCoach={() => setScreen({ name: 'coach' })}
+      coachGroup={coachSet ? { name: coachSet.name, count: coachSet.items.length, updatedAt: coachSet.updatedAt, code: coachSet.code } : null}
+      onJoinGroup={joinGroup}
+      onLeaveGroup={() => {
+        forgetGroupSet();
+        setCoachSet(null);
+      }}
       onAnalysis={() => setScreen({ name: 'analysis' })}
       challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}
       onChallenge={() => setScreen({ name: 'challenge', index: challenge.next >= 0 ? challenge.next : 0 })}

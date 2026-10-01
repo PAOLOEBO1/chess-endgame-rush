@@ -11,6 +11,8 @@ import { encodeSeries, parseBulk, SERIES_MAX, type SeriesItem } from '../core/se
 import type { Puzzle } from '../core/types';
 import { Diagram } from '../components/board/Diagram';
 import { Icon } from '../components/Icon';
+import { CoachBasePanel } from '../components/CoachBasePanel';
+import type { Engine } from '../services/stockfish';
 import { BASICS_GROUPS } from '../data/puzzlesMock';
 import type { MoveJudge } from '../services/moveJudge';
 import { getSettings, setSetting, type SavedSeries } from '../services/settings';
@@ -19,11 +21,15 @@ interface Props {
   basics: Puzzle[];
   judge: Pick<MoveJudge, 'check'>;
   onHome: () => void;
+  /** Base d'exercices du groupe : compte requis, moteur pour estimer l'Elo. */
+  signedIn: boolean;
+  onAccount: () => void;
+  engine: Pick<Engine, 'analyse'>;
 }
 
 const LIBRARY_MAX = 50;
 
-export function CoachScreen({ basics, judge, onHome }: Props) {
+export function CoachScreen({ basics, judge, onHome, signedIn, onAccount, engine }: Props) {
   const [name, setName] = useState('');
   const [items, setItems] = useState<SeriesItem[]>([]);
   const [fen, setFen] = useState('');
@@ -199,9 +205,12 @@ export function CoachScreen({ basics, judge, onHome }: Props) {
             ← Accueil
           </button>
         </div>
+        <CoachBasePanel signedIn={signedIn} onAccount={onAccount} engine={engine} />
+
+        <h2 className="mt-2 text-lg font-bold text-stone-50">Séries de positions à partager par lien</h2>
         <p className="text-sm text-stone-400">
           Choisis des positions, puis envoie le lien ou imprime la fiche. Tes élèves jouent la série et te renvoient leur résultat en un
-          clic. Rien n’est enregistré en ligne : la série tient dans le lien ; ta bibliothèque reste sur cet appareil.
+          clic. La série tient dans le lien ; ta bibliothèque suit ton compte.
         </p>
 
         <div className="flex flex-wrap items-end gap-2">

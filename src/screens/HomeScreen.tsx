@@ -16,7 +16,7 @@ import { isSoundOn, setSoundOn } from '../services/sound';
 import { applyBoardTheme, BOARD_THEMES, getSettings, setSetting, type BoardTheme, type TrainTab } from '../services/settings';
 
 export type HomeMode = RushMode | 'training';
-export type ThemeChoice = 'mix' | 'bases' | 'pions' | 'tours' | 'dames' | 'fous' | 'cavaliers' | 'mixte';
+export type ThemeChoice = 'mix' | 'bases' | 'pions' | 'tours' | 'dames' | 'fous' | 'cavaliers' | 'mixte' | 'entraineur';
 
 export const THEMES: { id: ThemeChoice; label: string; icon?: IconName }[] = [
   { id: 'mix', label: 'Mix', icon: 'dice' },
@@ -27,6 +27,7 @@ export const THEMES: { id: ThemeChoice; label: string; icon?: IconName }[] = [
   { id: 'cavaliers', label: '♞ Cavaliers' },
   { id: 'mixte', label: '⚖ Mixtes' },
   { id: 'bases', label: 'Bases', icon: 'book' },
+  { id: 'entraineur', label: 'Entraîneur', icon: 'board' },
 ];
 
 const MODES: { id: HomeMode; icon: IconName; title: string; text: string }[] = [
@@ -41,6 +42,8 @@ const MODES: { id: HomeMode; icon: IconName; title: string; text: string }[] = [
 ];
 
 const LEVEL_LABEL: Record<Level, string> = { debutant: 'Débutant', intermediaire: 'Intermédiaire', avance: 'Avancé', master: 'Master' };
+
+type HomeProps = Props;
 
 interface Props {
   /** Affichage compact (intégration dans un site). */
@@ -111,6 +114,63 @@ interface Props {
   challenge: { played: number; solved: number; total: number } | null;
   onChallenge: () => void;
   onTechnique: () => void;
+  /** Groupe d'entraîneur rejoint (thème « Entraîneur ») : null si aucun. */
+  coachGroup: { name: string; count: number; updatedAt: string; code: string } | null;
+  /** Rejoindre un groupe par son code ; renvoie un message d'erreur ou null. */
+  onJoinGroup: (code: string) => Promise<string | null>;
+  onLeaveGroup: () => void;
+}
+
+function CoachGroupBox({ group, onJoin, onLeave }: { group: HomeProps['coachGroup']; onJoin: HomeProps['onJoinGroup']; onLeave: () => void }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (group) {
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-stone-700 p-3 text-sm text-stone-200">
+        <span className="min-w-0 flex-1">
+          <Icon name="board" className="h-4 w-4 text-amber-300" /> Groupe <strong>« {group.name} »</strong> · {group.count} exercice{group.count > 1 ? 's' : ''},
+          du plus facile au plus difficile
+          {group.updatedAt && <span className="text-stone-400"> · mis à jour le {new Date(group.updatedAt).toLocaleDateString('fr-FR')}</span>}
+        </span>
+        <button type="button" onClick={onLeave} className="text-xs text-stone-400 hover:text-stone-100 hover:underline">
+          Quitter le groupe
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-stone-200"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError(await onJoin(code));
+        setBusy(false);
+      }}
+    >
+      <p>
+        Les exercices choisis par <strong>ton entraîneur</strong>. Entre le code de ton groupe (8 caractères), ou ouvre le lien qu’il t’a
+        envoyé.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          maxLength={8}
+          placeholder="CODE"
+          aria-label="Code du groupe"
+          autoCapitalize="characters"
+          spellCheck={false}
+          className="w-36 rounded-lg bg-stone-900 px-3 py-2 font-mono tracking-widest text-stone-100 placeholder:text-stone-500"
+        />
+        <button type="submit" disabled={busy || code.trim().length !== 8} className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-stone-900 hover:bg-amber-400 disabled:opacity-40">
+          {busy ? 'Recherche…' : 'Rejoindre'}
+        </button>
+      </div>
+      {error && <p className="text-red-300">{error}</p>}
+    </form>
+  );
 }
 
 const subChip = (active: boolean) =>
@@ -314,7 +374,8 @@ export function HomeScreen(p: Props) {
                 </button>
               ))}
             </div>
-            {p.theme !== 'mix' && p.theme !== 'bases' && (
+            {p.theme === 'entraineur' && <CoachGroupBox group={p.coachGroup} onJoin={p.onJoinGroup} onLeave={p.onLeaveGroup} />}
+            {p.theme !== 'mix' && p.theme !== 'bases' && p.theme !== 'entraineur' && (
               <div className="mt-3 flex flex-wrap gap-2 border-l-2 border-stone-700 pl-3" aria-label="Sous-thèmes">
                 <button type="button" className={subChip(p.sub === 'all')} onClick={() => p.onSub('all')}>
                   Tous <Count n={p.counts.get(p.theme)} />
@@ -511,7 +572,7 @@ export function HomeScreen(p: Props) {
             l’objectif est la nulle. Chaque coup est jugé par la table de finales.
           </p>
           <div className="flex flex-wrap gap-2">
-            {THEMES.filter((t) => t.id !== 'bases').map((t) => (
+            {THEMES.filter((t) => t.id !== 'bases' && t.id !== 'entraineur').map((t) => (
               <button key={t.id} type="button" className={chip(p.theme === t.id)} onClick={() => p.onTheme(t.id)}>
                 {t.icon && <Icon name={t.icon} className="mr-1 h-4 w-4" />}
                 {t.label}

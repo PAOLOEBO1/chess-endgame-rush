@@ -120,3 +120,52 @@ export function legalDestsMap(fen: string): Map<string, string[]> {
 export function isInCheck(fen: string): boolean {
   return load(fen)?.inCheck() ?? false;
 }
+
+export interface PgnExercise {
+  /** Rang dans le fichier (1 = première partie). */
+  index: number;
+  fen: string;
+  /** Ligne principale (UCI), à partir du coup du camp au trait. */
+  moves: string[];
+  headers: Record<string, string>;
+}
+
+/**
+ * Lit un fichier PGN d'exercices : chaque partie doit partir d'une position
+ * (en-tête FEN) ; la ligne principale est la solution (variantes ignorées).
+ */
+export function parsePgnExercises(text: string): { items: PgnExercise[]; skipped: { index: number; reason: string }[] } {
+  const items: PgnExercise[] = [];
+  const skipped: { index: number; reason: string }[] = [];
+  const chunks = text
+    .replace(/\r\n?/g, '\n')
+    .replace(/^﻿/, '')
+    .split(/\n\s*\n(?=\s*\[)/)
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0);
+  chunks.forEach((chunk, i) => {
+    const index = i + 1;
+    const chess = new Chess();
+    try {
+      chess.loadPgn(chunk);
+    } catch {
+      skipped.push({ index, reason: 'PGN illisible' });
+      return;
+    }
+    // En-têtes tels qu'écrits dans le fichier (chess.js remplace Result par la fin de la partie).
+    const headers: Record<string, string> = { ...chess.getHeaders() };
+    for (const m of chunk.matchAll(/^\s*\[(\w+)\s+"((?:[^"\\]|\\.)*)"\s*\]/gm)) headers[m[1]] = m[2];
+    const fen = headers.FEN;
+    if (!fen) {
+      skipped.push({ index, reason: 'pas de position de départ (en-tête FEN)' });
+      return;
+    }
+    const moves = chess.history({ verbose: true }).map((m) => m.from + m.to + (m.promotion ?? ''));
+    if (!moves.length) {
+      skipped.push({ index, reason: 'aucun coup de solution' });
+      return;
+    }
+    items.push({ index, fen, moves, headers });
+  });
+  return { items, skipped };
+}

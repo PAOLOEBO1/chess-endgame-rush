@@ -11,7 +11,7 @@ export type Level = 'debutant' | 'intermediaire' | 'avance' | 'master';
 export type Family = 'pions' | 'tours' | 'dames' | 'cavaliers' | 'fous' | 'mixte' | 'mats';
 
 /** Collection d'origine d'un puzzle. */
-export type Collection = 'bases' | 'lichess' | 'tablebase';
+export type Collection = 'bases' | 'lichess' | 'tablebase' | 'coach';
 
 export interface Puzzle {
   id: string;
