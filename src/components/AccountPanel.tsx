@@ -115,12 +115,13 @@ export function AccountPanel({ account, playerId, playerName, linkedName, onSele
               Le profil <strong>« {a.linkChoice.name} »</strong> de cet appareil a déjà {a.linkChoice.entries} entrée(s), et le compte{' '}
               <strong>« {a.linkChoice.pseudo} »</strong> a aussi son historique. Que faire ?
             </p>
+            {/* Même nom que le compte : c'est sans doute le même joueur, la fusion est le bon choix. */}
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={primary} disabled={a.busy} onClick={() => a.resolveLink(false)}>
-                Récupérer le profil du compte (recommandé)
+              <button type="button" className={a.linkChoice.name === a.linkChoice.pseudo ? secondary : primary} disabled={a.busy} onClick={() => a.resolveLink(false)}>
+                Récupérer le profil du compte{a.linkChoice.name === a.linkChoice.pseudo ? '' : ' (recommandé)'}
               </button>
-              <button type="button" className={secondary} disabled={a.busy} onClick={() => a.resolveLink(true)}>
-                C’est moi aussi : fusionner « {a.linkChoice.name} » dans le compte
+              <button type="button" className={a.linkChoice.name === a.linkChoice.pseudo ? primary : secondary} disabled={a.busy} onClick={() => a.resolveLink(true)}>
+                C’est moi : fusionner « {a.linkChoice.name} » dans le compte{a.linkChoice.name === a.linkChoice.pseudo ? ' (recommandé)' : ''}
               </button>
             </div>
             <p className="text-xs text-stone-400">
@@ -134,10 +135,16 @@ export function AccountPanel({ account, playerId, playerName, linkedName, onSele
             <span className="min-w-0 flex-1">
               {playerName ? <>Le profil « {playerName} » n’est pas celui du compte : ses parties restent sur cet appareil.</> : <>En invité, les parties ne sont pas enregistrées.</>}
             </span>
-            {a.linkedPlayerId && linkedName && (
+            {a.linkedPlayerId && linkedName ? (
               <button type="button" className={primary} onClick={() => onSelectPlayer(a.linkedPlayerId)}>
                 Revenir à « {linkedName} » ☁
               </button>
+            ) : (
+              playerId && (
+                <button type="button" className={primary} disabled={a.busy} onClick={() => a.linkCurrent()}>
+                  Relier « {playerName} » au compte ☁
+                </button>
+              )
             )}
           </div>
         )}

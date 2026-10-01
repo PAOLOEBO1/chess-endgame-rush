@@ -55,6 +55,8 @@ export interface CloudAccount {
    */
   linkChoice: { playerId: string; name: string; entries: number; pseudo: string } | null;
   resolveLink(merge: boolean): Promise<void>;
+  /** Aucun profil relié sur cet appareil : relier le profil en cours (avec choix si besoin). */
+  linkCurrent(): Promise<void>;
   /** Renomme le profil relié et le pseudo du compte (un seul nom partout). */
   renameLinked(name: string): Promise<void>;
 }
@@ -78,6 +80,18 @@ export function useCloudAccount(
   const [enrolling, setEnrolling] = useState<CloudAccount['enrolling']>(null);
   const [publicProfile, setPublicProfile] = useState<CloudAccount['publicProfile']>(null);
   const linkedFor = useRef<string | null>(null);
+  /** Profil relié au compte sur cet appareil ; un lien vers un profil supprimé est oublié. */
+  const linkedOf = useCallback(
+    (userId: string): string | null => {
+      const pid = playerOfUser(userId);
+      if (pid && !store.listPlayers().some((p) => p.id === pid)) {
+        unlinkPlayer(pid);
+        return null;
+      }
+      return pid;
+    },
+    [store],
+  );
   const [linkChoice, setLinkChoice] = useState<CloudAccount['linkChoice']>(null);
 
   const ok = (text: string) => setMessage({ tone: 'ok', text });
@@ -193,7 +207,7 @@ export function useCloudAccount(
           setNeedMfa(true);
           return;
         }
-        const known = playerOfUser(userId);
+        const known = linkedOf(userId);
         if (known) {
           // Appareil déjà relié : le profil du compte est sélectionné à chaque ouverture,
           // avec le nom du compte (renommé ailleurs, il l'est ici aussi).
@@ -344,7 +358,7 @@ export function useCloudAccount(
 
     syncNow: () =>
       run(async () => {
-        if (!playerId || !linkedUser(playerId)) throw 'Ce profil n’est pas lié au compte.';
+        if (!playerId || !linkedUser(playerId)) throw 'Ce profil n’est pas celui du compte : utilise le bouton « Relier … au compte » ci-dessus.';
         try {
           const added = await syncProfile(playerId);
           ok(added ? `Synchronisé : ${added} entrée(s) récupérée(s).` : 'Synchronisé.');
@@ -389,7 +403,21 @@ export function useCloudAccount(
         ok(on ? `Vous apparaissez dans le classement sous le pseudo « ${clean} » (mise à jour sous 5 min).` : 'Vous n’apparaissez plus dans le classement (mise à jour sous 5 min).');
       }),
 
-    linkedPlayerId: session ? playerOfUser(session.user.id) : null,
+    linkedPlayerId: session ? linkedOf(session.user.id) : null,
+    linkCurrent: () =>
+      run(async () => {
+        if (!session || !playerId || linkedUser(playerId)) return;
+        const { data: prof } = await (await sb()).from('profiles').select('pseudo').maybeSingle();
+        const pseudo: string | null = prof?.pseudo ?? null;
+        const online = (await remoteCount()) ?? 0;
+        const h = store.history(playerId);
+        const entries = h.attempts.length + h.runs.length;
+        if (linkPlan(playerId, entries, online) === 'ask') {
+          setLinkChoice({ playerId, name: store.listPlayers().find((p) => p.id === playerId)?.name ?? 'Joueur', entries, pseudo: pseudo ?? 'mon compte' });
+          return;
+        }
+        await linkAndSync(playerId, session.user.id, online > 0 ? pseudo : null);
+      }),
     linkChoice,
     resolveLink: (merge) =>
       run(async () => {
@@ -400,7 +428,7 @@ export function useCloudAccount(
       }),
     renameLinked: (name) =>
       run(async () => {
-        const pid = session ? playerOfUser(session.user.id) : null;
+        const pid = session ? linkedOf(session.user.id) : null;
         if (!session || !pid) return;
         const clean = pseudoFrom(name.trim());
         store.renamePlayer(pid, name);
