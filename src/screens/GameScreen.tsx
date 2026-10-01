@@ -5,6 +5,7 @@ import { MoveInput } from '../components/board/MoveInput';
 import { feedbackFor, type Tone } from '../components/hud/feedback';
 import { TRAINING_RULES, type ModeRules } from '../core/config';
 import { parseUci } from '../core/fen';
+import { errorTypeOf, type ErrorType } from '../core/errorTypes';
 import { materialSymbols } from '../core/material';
 import type { Puzzle } from '../core/types';
 import { usePuzzlePlayer } from '../hooks/usePuzzlePlayer';
@@ -22,7 +23,7 @@ interface Props {
   puzzle: Puzzle;
   position: { index: number; total: number };
   judge: MoveJudge;
-  onAttempt?: (puzzle: Puzzle, success: boolean) => void;
+  onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType) => void;
   onNext: () => void;
   onHome: () => void;
   /** Règles du puzzle (par défaut : entraînement jusqu'au bout). */
@@ -35,9 +36,11 @@ interface Props {
   onOtherSide?: () => void;
   /** Test de maîtrise : ni indice, ni retour en arrière, ni « Recommencer ». */
   exam?: boolean;
+  /** Ouvrir la partie jouée dans l'analyse libre (position de départ + coups). */
+  onAnalyse?: (fen: string, moves: string[]) => void;
 }
 
-export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header, onOtherSide, exam = false }: Props) {
+export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome, rules = TRAINING_RULES, backLabel = '← Toutes les positions', header, onOtherSide, exam = false, onAnalyse }: Props) {
   const { state, timings, playMove, reset, takeBack } = usePuzzlePlayer(puzzle, rules, judge);
   const flash = useBoardFlash(state.phase, state.verdict?.kind);
   const feedback = feedbackFor(state);
@@ -76,7 +79,9 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
     }
     if (!archived.current && (state.phase === 'solved' || state.phase === 'failed')) {
       archived.current = true;
-      onAttempt?.(puzzle, state.phase === 'solved' && hintsUsed.current === 0);
+      const solved = state.phase === 'solved';
+      const error = errorTypeOf({ success: solved, hintUsed: hintsUsed.current > 0, endReason: state.endReason, verdict: state.verdict, fen: state.fen });
+      onAttempt?.(puzzle, solved && hintsUsed.current === 0, error);
     }
   }, [state.phase, state.moves.length, state.takebacks, puzzle, onAttempt]);
   const playerIsWhite = state.playerColor === 'w';
@@ -243,6 +248,16 @@ export function GameScreen({ puzzle, position, judge, onAttempt, onNext, onHome,
               title="Annule ton dernier coup et rejoue depuis la position d’avant"
             >
               ↶ Réessayer ce coup
+            </button>
+          )}
+          {!exam && finished && onAnalyse && (
+            <button
+              type="button"
+              onClick={() => onAnalyse(puzzle.fen, state.moves.map((m) => m.uci))}
+              className="rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600"
+              title="Revoir la partie coup par coup avec la table de finales"
+            >
+              🔎 Analyser
             </button>
           )}
           {!exam && (

@@ -2,7 +2,9 @@
 // l'imprimer, et garder ses séries dans une bibliothèque (sur cet appareil).
 // Rien n'est stocké en ligne : la série voyage dans le lien lui-même.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { visibleSeries } from '../core/userData';
+import { scheduleUserDataSync, USER_DATA_EVENT } from '../services/userDataSync';
 import { isValidFen } from '../core/chessRules';
 import { sideToMove } from '../core/fen';
 import { encodeSeries, parseBulk, SERIES_MAX, type SeriesItem } from '../core/series';
@@ -31,7 +33,14 @@ export function CoachScreen({ basics, judge, onHome }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string | null>(null);
-  const [library, setLibrary] = useState<SavedSeries[]>(() => getSettings().seriesLibrary);
+  const [allSeries, setAllSeries] = useState<SavedSeries[]>(() => getSettings().seriesLibrary);
+  const library = visibleSeries(allSeries);
+  // Bibliothèque mise à jour depuis le compte (autre appareil).
+  useEffect(() => {
+    const reload = () => setAllSeries(getSettings().seriesLibrary);
+    window.addEventListener(USER_DATA_EVENT, reload);
+    return () => window.removeEventListener(USER_DATA_EVENT, reload);
+  }, []);
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   const change = (f: (list: SeriesItem[]) => SeriesItem[]) => {
@@ -134,8 +143,9 @@ export function CoachScreen({ basics, judge, onHome }: Props) {
 
   // --- Bibliothèque (cet appareil) ------------------------------------------
   const saveLibrary = (next: SavedSeries[]) => {
-    setLibrary(next);
+    setAllSeries(next);
     setSetting('seriesLibrary', next);
+    scheduleUserDataSync();
   };
   const save = () => {
     const entry: SavedSeries = {
@@ -144,8 +154,8 @@ export function CoachScreen({ basics, judge, onHome }: Props) {
       items,
       savedAt: Date.now(),
     };
-    const others = library.filter((s) => s.id !== entry.id);
-    if (!currentId && others.length >= LIBRARY_MAX) {
+    const others = allSeries.filter((s) => s.id !== entry.id);
+    if (!currentId && visibleSeries(others).length >= LIBRARY_MAX) {
       setMessage(`Bibliothèque pleine (${LIBRARY_MAX} séries) : supprimes-en une d’abord.`);
       return;
     }
@@ -307,7 +317,7 @@ export function CoachScreen({ basics, judge, onHome }: Props) {
         {library.length > 0 && (
           <section className="flex flex-col gap-3 rounded-xl border border-stone-700 p-4">
             <h2 className="font-bold text-stone-50"><Icon name="library" className="h-5 w-5 text-amber-300" /> Ma bibliothèque · {library.length}</h2>
-            <p className="text-xs text-stone-400">Enregistrée dans ce navigateur seulement : pour la retrouver ailleurs, garde aussi le lien.</p>
+            <p className="text-xs text-stone-400">Enregistrée sur cet appareil, et sur ton compte si tu es connecté : tu la retrouves alors partout.</p>
             <ul className="flex flex-col gap-2">
               {library.map((s) => (
                 <li key={s.id} className={`flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 ${s.id === currentId ? 'bg-amber-500/15' : 'bg-stone-800'}`}>
@@ -323,7 +333,8 @@ export function CoachScreen({ basics, judge, onHome }: Props) {
                   <button
                     type="button"
                     onClick={() => {
-                      saveLibrary(library.filter((x) => x.id !== s.id));
+                      // Suppression gardée en mémoire : elle atteindra aussi les autres appareils.
+                      saveLibrary(allSeries.map((x) => (x.id === s.id ? { ...x, deletedAt: Date.now() } : x)));
                       if (s.id === currentId) setCurrentId(null);
                     }}
                     className="px-2 text-sm text-red-300 hover:underline"

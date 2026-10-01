@@ -1,5 +1,6 @@
 // Un puzzle en mode Rush : échiquier + ligne d'état, et signal de fin au parent.
 
+import { errorTypeOf, type ErrorType } from '../core/errorTypes';
 import { useEffect, useMemo, useRef } from 'react';
 import { rushRules } from '../core/config';
 import { parseUci } from '../core/fen';
@@ -17,7 +18,7 @@ interface Props {
   puzzle: Puzzle;
   active: boolean;
   judge: MoveJudge;
-  onEnd: (end: PuzzleEnd) => void;
+  onEnd: (end: PuzzleEnd, error?: ErrorType) => void;
   onPlayerMove?: () => void;
   /** Message affiché à la place de l'état (ex. « le chrono démarre au premier coup »). */
   banner?: string | null;
@@ -43,8 +44,9 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
       state.phase === 'solved' ? 'solved' : state.phase === 'failed' ? 'failed' : state.phase === 'error' ? 'skipped' : null;
     if (end) {
       reported.current = true;
-      onEnd(end);
+      onEnd(end, errorTypeOf({ success: end === 'solved', endReason: state.endReason, verdict: state.verdict, fen: state.fen }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- issue lue au moment où la phase change
   }, [state.phase, onEnd]);
 
   const failedBad = state.phase === 'failed' && state.verdict?.kind === 'bad' ? state.verdict : null;

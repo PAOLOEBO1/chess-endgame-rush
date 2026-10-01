@@ -93,6 +93,8 @@ interface Props {
   onWeakness: (family: string) => void;
   /** Espace entraîneur : composer une série à partager par lien. */
   onCoach: () => void;
+  /** Analyse libre d'une position. */
+  onAnalysis: () => void;
   /** Leçons guidées (démonstrations commentées). */
   lessons: { id: string; title: string }[];
   onLesson: (id: string) => void;
@@ -123,6 +125,7 @@ const TRAIN_TABS: { id: TrainTab; label: string; icon: IconName }[] = [
   { id: 'lecons', label: 'Leçons', icon: 'cap' },
   { id: 'technique', label: 'Technique', icon: 'tool' },
   { id: 'jugement', label: 'Jugement', icon: 'scale' },
+  { id: 'analyse', label: 'Analyse', icon: 'search' },
   { id: 'entraineur', label: 'Entraîneur', icon: 'board' },
 ];
 
@@ -544,6 +547,18 @@ export function HomeScreen(p: Props) {
             className="self-start rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
           >
             <Icon name="play" className="h-4 w-4" /> Série de 10
+          </button>
+        </section>
+        )}
+        {trainTab === 'analyse' && (
+        <section className="mt-4 flex flex-col gap-3 rounded-xl bg-stone-800/60 p-4">
+          <h2 className="text-lg font-bold text-stone-50"><Icon name="search" className="h-5 w-5 text-amber-300" /> Analyse libre</h2>
+          <p className="text-sm text-stone-400">
+            Colle la position d’une de tes parties (FEN), joue les coups des deux camps : la table de finales donne le résultat exact de
+            chaque coup (jusqu’à 7 pièces), Stockfish évalue au-delà. Après une position ratée, le bouton « Analyser » l’ouvre ici.
+          </p>
+          <button type="button" onClick={p.onAnalysis} className="self-start rounded-xl bg-amber-500 px-6 py-3 font-black text-stone-900 hover:bg-amber-400">
+            <Icon name="search" className="h-5 w-5" /> Ouvrir l’analyse
           </button>
         </section>
         )}

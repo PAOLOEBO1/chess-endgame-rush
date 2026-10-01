@@ -8,6 +8,7 @@ import { badges, dayStreak } from '../core/motivation';
 import { ratingsByKey } from '../core/playerRating';
 import type { CloudAccount } from '../hooks/useCloudAccount';
 import { TypeProfile } from '../components/TypeProfile';
+import { ErrorProfile } from '../components/ErrorProfile';
 import { ScoreChart } from '../components/charts/ScoreChart';
 import { FAMILY_LABEL } from '../core/material';
 import { filterAttempts, scoreSeries, totals } from '../core/stats';
@@ -268,6 +269,9 @@ export function ProgressScreen({ store, account, onPrivacy, playerId, onPlayerCh
 
           {/* Points faibles par type de finale : radars + classement */}
           <TypeProfile attempts={history.attempts} onTrain={(f, s) => onTrain(f, s)} />
+
+          {/* Pourquoi les positions sont ratées */}
+          <ErrorProfile attempts={history.attempts} />
 
           <h2 className="mt-2 text-sm font-semibold uppercase tracking-wide text-stone-400">Statistiques d’entraînement</h2>
           {/* Filtres : une seule rangée, au-dessus des graphiques */}

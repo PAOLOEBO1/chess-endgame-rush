@@ -1,7 +1,7 @@
 // Réglages de l'appli, enregistrés dans le navigateur.
 
 import type { ExamRecord } from '../core/exam';
-import type { SeriesItem } from '../core/series';
+import type { SavedSeries } from '../core/userData';
 
 const KEY = 'endgameRush:v1:settings';
 
@@ -25,14 +25,9 @@ interface Settings {
   seriesLibrary: SavedSeries[];
 }
 
-export interface SavedSeries {
-  id: string;
-  name: string;
-  items: SeriesItem[];
-  savedAt: number;
-}
+export type { SavedSeries };
 
-export type TrainTab = 'bases' | 'lecons' | 'technique' | 'jugement' | 'entraineur';
+export type TrainTab = 'bases' | 'lecons' | 'technique' | 'jugement' | 'analyse' | 'entraineur';
 
 export type BoardTheme = 'brown' | 'blue' | 'green' | 'contrast';
 export const BOARD_THEMES: { id: BoardTheme; label: string; light: string; dark: string }[] = [

@@ -5,6 +5,7 @@ import { countPieces } from './core/fen';
 import { applyUci } from './core/chessRules';
 import { dueNow, maintenanceDue, reviewItems } from './core/review';
 import { recordExam } from './core/exam';
+import type { ErrorType } from './core/errorTypes';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
 import { decodeSeries, type Series } from './core/series';
@@ -21,16 +22,18 @@ import { RushScreen } from './screens/RushScreen';
 import { getBest, scoreKey } from './services/highScores';
 import { judge } from './services/judge';
 import { tablebase } from './services/tablebaseClient';
+import { stockfish } from './services/stockfish';
 import { useCloudAccount } from './hooks/useCloudAccount';
 import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
+import { scheduleUserDataSync, USER_DATA_EVENT } from './services/userDataSync';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach' } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen };
 
 const embed = readEmbedOptions();
 
@@ -41,6 +44,7 @@ const loadLeaderboard = () => import('./screens/LeaderboardScreen');
 const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ default: m.CoachScreen })));
 const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
 const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
+const AnalysisScreen = lazy(() => import('./screens/AnalysisScreen').then((m) => ({ default: m.AnalysisScreen })));
 const ExamScreen = lazy(() => import('./screens/ExamScreen').then((m) => ({ default: m.ExamScreen })));
 const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
 const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
@@ -189,7 +193,7 @@ export default function App() {
   }, [changePlayer]);
 
   const onAttempt = useCallback(
-    (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily' | 'challenge') => {
+    (puzzle: Puzzle, success: boolean, m: 'storm' | 'streak' | 'training' | 'review' | 'daily' | 'challenge', e?: ErrorType) => {
       const playerId = ensurePlayer();
       if (!playerId) return;
       playerStore.addAttempt(playerId, {
@@ -200,12 +204,13 @@ export default function App() {
         c: puzzle.subcategory ?? subcategoryOf(puzzle.fen),
         f: puzzle.family ?? familyOf(puzzle.fen),
         ok: success,
+        ...(e ? { e } : {}),
       });
     },
     [ensurePlayer],
   );
-  const onRushAttempt = useCallback((p: Puzzle, ok: boolean) => onAttempt(p, ok, mode === 'streak' ? 'streak' : 'storm'), [onAttempt, mode]);
-  const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean) => onAttempt(p, ok, 'training'), [onAttempt]);
+  const onRushAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, mode === 'streak' ? 'streak' : 'storm', e), [onAttempt, mode]);
+  const onTrainingAttempt = useCallback((p: Puzzle, ok: boolean, e?: ErrorType) => onAttempt(p, ok, 'training', e), [onAttempt]);
   const onRunEnd = useCallback(
     (run: Omit<Run, 't'>) => {
       const id = ensurePlayer();
@@ -258,20 +263,20 @@ export default function App() {
   }, [playerId, lichess, screen]);
   const challengeRecorded = useRef(new Set<string>());
   const onChallengeAttempt = useCallback(
-    (p: Puzzle, ok: boolean) => {
+    (p: Puzzle, ok: boolean, e?: ErrorType) => {
       if (challenge.results.has(p.id) || challengeRecorded.current.has(p.id)) return;
       challengeRecorded.current.add(p.id);
-      onAttempt(p, ok, 'challenge');
+      onAttempt(p, ok, 'challenge', e);
     },
     [challenge, onAttempt],
   );
   const dailyRecorded = useRef(false);
   const onDailyAttempt = useCallback(
-    (p: Puzzle, ok: boolean) => {
+    (p: Puzzle, ok: boolean, e?: ErrorType) => {
       // Seule la première tentative du jour compte.
       if (dailyRecorded.current || motivation.dailyResult !== null) return;
       dailyRecorded.current = true;
-      onAttempt(p, ok, 'daily');
+      onAttempt(p, ok, 'daily', e);
     },
     [onAttempt, motivation.dailyResult],
   );
@@ -332,10 +337,10 @@ export default function App() {
     if (list.length) setScreen({ name: 'review', ids: list, index: 0 });
   }, [spaced]);
   const onReviewAttempt = useCallback(
-    (p: Puzzle, ok: boolean) => {
+    (p: Puzzle, ok: boolean, e?: ErrorType) => {
       if (reviewed.current.has(p.id)) return;
       reviewed.current.add(p.id);
-      onAttempt(p, ok, 'review');
+      onAttempt(p, ok, 'review', e);
     },
     [onAttempt],
   );
@@ -365,6 +370,12 @@ export default function App() {
   // Tests de maîtrise des thèmes « Bases » (bilans gardés sur cet appareil, par profil).
   const examKey = playerId ?? 'invite';
   const [exams, setExams] = useState(() => getSettings().exams);
+  useEffect(() => {
+    // Bilans mis à jour depuis le compte (autre appareil).
+    const reload = () => setExams(getSettings().exams);
+    window.addEventListener(USER_DATA_EVENT, reload);
+    return () => window.removeEventListener(USER_DATA_EVENT, reload);
+  }, []);
   const [examResults, setExamResults] = useState<(boolean | null)[]>([]);
   const startExam = useCallback((group: string) => {
     const g = BASICS_GROUPS.find((x) => x.id === group);
@@ -379,6 +390,7 @@ export default function App() {
       const next = { ...all, [examKey]: { ...mine, [group]: recordExam(mine[group], results, Date.now()) } };
       setSetting('exams', next);
       setExams(next);
+      scheduleUserDataSync();
       setScreen({ name: 'examEnd', group });
     },
     [examKey],
@@ -481,6 +493,7 @@ export default function App() {
         puzzle={puzzle}
         position={{ index: screen.index, total: screen.ids.length }}
         judge={judge}
+        onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         rules={reviewFull.has(id) ? (puzzle.collection === 'bases' ? TRAINING_RULES : TECHNIQUE_RULES) : puzzle.solution ? rushRules(puzzle.solution) : TRAINING_RULES}
         backLabel="← Arrêter la révision"
         header={
@@ -491,6 +504,20 @@ export default function App() {
         onAttempt={onReviewAttempt}
         onHome={() => setScreen({ name: 'home' })}
         onNext={next}
+      />,
+    );
+  }
+
+  if (screen.name === 'analysis') {
+    const back = screen.back;
+    return shell(
+      <AnalysisScreen
+        startFen={screen.fen}
+        moves={screen.moves}
+        tablebase={tablebase}
+        engine={stockfish}
+        backLabel={back ? '← Retour à la position' : '← Accueil'}
+        onHome={() => setScreen(back ?? { name: 'home' })}
       />,
     );
   }
@@ -507,13 +534,14 @@ export default function App() {
           puzzle={puzzle}
           position={{ index: i, total: g.ids.length }}
           judge={judge}
+          onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
           exam
           backLabel="← Abandonner le test"
           header={`🎓 Test de maîtrise — ${g.label} · ${i + 1}/${g.ids.length}`}
-          onAttempt={(p, ok) => {
+          onAttempt={(p, ok, e) => {
             if (examResults[i] !== null) return;
             setExamResults((r) => r.map((x, j) => (j === i ? ok : x)));
-            onTrainingAttempt(p, ok);
+            onTrainingAttempt(p, ok, e);
           }}
           onHome={() => setScreen({ name: 'home' })}
           onNext={() => (last ? finishExam(g.id, examResults) : setScreen({ name: 'exam', group: g.id, index: i + 1 }))}
@@ -564,12 +592,13 @@ export default function App() {
         puzzle={sp}
         position={{ index: i, total: SERIES_PUZZLES.length }}
         judge={judge}
+        onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         backLabel="← La série"
         header={`🧑‍🏫 ${SERIES!.name} — seule ta 1re tentative compte`}
-        onAttempt={(p, ok) => {
+        onAttempt={(p, ok, e) => {
           if (seriesResults[i] !== null) return;
           setSeriesResults((r) => r.map((x, j) => (j === i ? ok : x)));
-          onTrainingAttempt(p, ok);
+          onTrainingAttempt(p, ok, e);
         }}
         onHome={() => setScreen({ name: 'series' })}
         onNext={() => setScreen({ name: 'series' })}
@@ -586,6 +615,7 @@ export default function App() {
         puzzle={c}
         position={{ index: screen.index, total: challenge.picks.length }}
         judge={judge}
+        onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         rules={rushRules(c.solution)}
         backLabel="← Accueil"
         header={`🏁 Défi de la semaine ${challenge.week.split('-S')[1]} — le même pour tous · ${
@@ -606,6 +636,7 @@ export default function App() {
         puzzle={d}
         position={{ index: 0, total: 1 }}
         judge={judge}
+        onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         rules={rushRules(d.solution)}
         backLabel="← Accueil"
         header={`📌 Puzzle du jour — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} · le même pour tous`}
@@ -625,6 +656,7 @@ export default function App() {
           puzzle={puzzle}
           position={{ index: screen.n, total: techniquePool.length }}
           judge={judge}
+          onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
           rules={TECHNIQUE_RULES}
           backLabel="← Accueil"
           header="🛠️ Technique — jouer jusqu’au bout contre la table de finales : mat, ou nulle tenue 20 coups"
@@ -643,6 +675,7 @@ export default function App() {
         puzzle={BASICS[screen.index]}
         position={{ index: screen.index, total: BASICS.length }}
         judge={judge}
+        onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         onAttempt={onTrainingAttempt}
         onHome={() => setScreen({ name: 'home' })}
         onNext={() => setScreen(screen.index + 1 < BASICS.length ? { name: 'training', index: screen.index + 1 } : { name: 'home' })}
@@ -658,6 +691,7 @@ export default function App() {
         puzzle={screen.puzzle}
         position={{ index: screen.index, total: BASICS.length }}
         judge={judge}
+        onAnalyse={(fen, moves) => setScreen({ name: 'analysis', fen, moves, back: screen })}
         header="🛡️ L’autre camp : l’ordinateur attaque avec la meilleure méthode, défends le plus longtemps possible"
         backLabel="← Retour à la position"
         onAttempt={onTrainingAttempt}
@@ -728,6 +762,7 @@ export default function App() {
       onTechnique={() => nextTechnique(0)}
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
       onCoach={() => setScreen({ name: 'coach' })}
+      onAnalysis={() => setScreen({ name: 'analysis' })}
       challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}
       onChallenge={() => setScreen({ name: 'challenge', index: challenge.next >= 0 ? challenge.next : 0 })}
       weakness={weakness}

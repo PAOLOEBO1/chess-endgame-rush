@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 
 const CONTACT = import.meta.env.VITE_CONTACT_EMAIL || '';
 export const SOURCE_URL = import.meta.env.VITE_SOURCE_URL || '';
-const UPDATED = '29 septembre 2026';
+const UPDATED = '1er octobre 2026';
 
 export function PrivacyScreen({ onHome }: { onHome: () => void }) {
   return (
@@ -59,7 +59,8 @@ export function PrivacyScreen({ onHome }: { onHome: () => void }) {
           <li>votre <strong>adresse email</strong> (connexion, confirmation, mot de passe oublié) ;</li>
           <li>votre <strong>mot de passe</strong>, jamais stocké en clair (seule une empreinte chiffrée est conservée) ;</li>
           <li>votre <strong>pseudo</strong> ;</li>
-          <li>votre <strong>historique d’entraînement</strong> : exercices tentés, réussite, difficulté, scores Storm et Streak ;</li>
+          <li>votre <strong>historique d’entraînement</strong> : exercices tentés, réussite, type d’erreur, difficulté, scores Storm et Streak ;</li>
+          <li>vos <strong>tests de maîtrise</strong> des Bases et votre <strong>bibliothèque de séries</strong> d’entraîneur (positions et noms que vous avez saisis) ;</li>
           <li>si vous l’activez, les données techniques de la <strong>double authentification</strong>.</li>
         </ul>
         <p>

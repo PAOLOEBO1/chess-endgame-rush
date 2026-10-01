@@ -1,6 +1,7 @@
 // Modes Rush : Storm (chrono) et Streak (série). Les règles de score et de
 // temps sont dans core/rush/rushRules.ts ; ici, uniquement l'orchestration.
 
+import type { ErrorType } from '../core/errorTypes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PuzzleRunner, type PuzzleEnd } from '../components/PuzzleRunner';
 import { CONFIG } from '../core/config';
@@ -22,7 +23,7 @@ interface Props {
   scoreKey: string;
   judge: MoveJudge;
   /** Archivage (profil joueur) : un puzzle terminé. */
-  onAttempt?: (puzzle: Puzzle, success: boolean) => void;
+  onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType) => void;
   /** Archivage : une partie terminée. */
   /** Puzzles joués lors des parties récentes : évités tant qu'il reste du choix. */
   recentlySeen?: ReadonlySet<string>;
@@ -175,7 +176,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
   }, []);
 
   const onEnd = useCallback(
-    async (end: PuzzleEnd) => {
+    async (end: PuzzleEnd, error?: ErrorType) => {
       const state = rushRef.current;
       if (state.status === 'over' || !current) return;
       let next = state;
@@ -183,7 +184,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
         const entry = { puzzleId: current.id, rating: current.rating, success: end === 'solved', gameUrl: current.gameUrl, title: current.title };
         next = rushReducer(state, { type: end === 'solved' ? 'SOLVED' : 'FAILED', now: Date.now(), entry });
         setRush(next);
-        if (next.history.length > state.history.length) onAttempt?.(current, end === 'solved');
+        if (next.history.length > state.history.length) onAttempt?.(current, end === 'solved', error);
         if (next.status === 'over') return;
       }
       await sleep(end === 'solved' ? CONFIG.modes.rushPauseAfterSuccessMs : CONFIG.modes.rushPauseAfterFailureMs);

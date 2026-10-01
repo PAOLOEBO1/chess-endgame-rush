@@ -1,6 +1,8 @@
 // Historique joueur : validation des données importées, fusion sans doublon,
 // conversion vers / depuis les lignes de la base en ligne. Fonctions pures.
 
+import { isErrorType, type ErrorType } from './errorTypes';
+
 export interface Attempt {
   t: number; // horodatage (ms)
   m: 'storm' | 'streak' | 'training' | 'review' | 'daily' | 'challenge';
@@ -9,6 +11,8 @@ export interface Attempt {
   c: string; // sous-catégorie
   f: string; // famille
   ok: boolean;
+  /** Type d'erreur (position ratée ou réussie avec indice), absent sinon. */
+  e?: ErrorType;
 }
 
 export interface Run {
@@ -58,7 +62,8 @@ export function isAttempt(a: unknown): a is Attempt {
     int(x.r, 0, 4000) &&
     str(x.c, 40, ID) &&
     str(x.f, 20, ID) &&
-    typeof x.ok === 'boolean'
+    typeof x.ok === 'boolean' &&
+    (x.e === undefined || x.e === null || isErrorType(x.e))
   );
 }
 
@@ -86,9 +91,13 @@ export function sanitizeHistory(h: unknown): { history: PlayerHistory; rejected:
   const x = (h ?? {}) as { attempts?: unknown; runs?: unknown };
   const rawA = Array.isArray(x.attempts) ? x.attempts : [];
   const rawR = Array.isArray(x.runs) ? x.runs : [];
-  const attempts = rawA.filter(isAttempt).map(({ t, m, p, r, c, f, ok }) => ({ t, m, p, r, c, f, ok }));
+  const attempts = rawA.filter(isAttempt).map(pickAttempt);
   const runs = rawR.filter(isRun).map((r) => pickRun(r));
   return { history: { attempts, runs }, rejected: rawA.length - attempts.length + rawR.length - runs.length };
+}
+
+function pickAttempt({ t, m, p, r, c, f, ok, e }: Attempt): Attempt {
+  return e ? { t, m, p, r, c, f, ok, e } : { t, m, p, r, c, f, ok };
 }
 
 function pickRun(r: Run): Run {
@@ -137,9 +146,9 @@ export interface RunRow {
   duration_ms: number | null;
 }
 
-export type AttemptRow = Attempt & { user_id?: string };
+export type AttemptRow = Omit<Attempt, 'e'> & { user_id?: string; e?: ErrorType | null };
 
-export const attemptToRow = (a: Attempt, userId: string): AttemptRow => ({ user_id: userId, t: a.t, m: a.m, p: a.p, r: a.r, c: a.c, f: a.f, ok: a.ok });
+export const attemptToRow = (a: Attempt, userId: string): AttemptRow => ({ user_id: userId, t: a.t, m: a.m, p: a.p, r: a.r, c: a.c, f: a.f, ok: a.ok, e: a.e ?? null });
 
 export const runToRow = (r: Run, userId: string): RunRow => ({
   user_id: userId,
@@ -171,4 +180,5 @@ export const rowToRun = (x: RunRow): Run =>
     durationMs: x.duration_ms ?? undefined,
   });
 
-export const rowToAttempt = (x: AttemptRow): Attempt => ({ t: Number(x.t), m: x.m, p: x.p, r: x.r, c: x.c, f: x.f, ok: x.ok });
+export const rowToAttempt = (x: AttemptRow): Attempt =>
+  pickAttempt({ t: Number(x.t), m: x.m, p: x.p, r: x.r, c: x.c, f: x.f, ok: x.ok, e: isErrorType(x.e) ? x.e : undefined });

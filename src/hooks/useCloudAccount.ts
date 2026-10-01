@@ -6,6 +6,7 @@ import { authErrorMessage, cloudEnabled, getCloud, markResetRequested, openedFro
 import type { PlayerStore } from '../services/playerStore';
 import { flush, linkedUser, linkPlayer, pendingCount, playerOfUser, pull, remoteCount, unlinkPlayer } from '../services/sync';
 import { linkPlan } from '../core/link';
+import { syncUserData } from '../services/userDataSync';
 
 /** Client Supabase (chargé à part, voir getCloud). */
 async function sb(): Promise<SupabaseClient> {
@@ -154,6 +155,8 @@ export function useCloudAccount(
     async (pid: string) => {
       await flush(pid);
       const added = await pull(store, pid);
+      // Tests de maîtrise et bibliothèque : sans effet bloquant si la table n'existe pas encore.
+      await syncUserData().catch((e) => console.warn('[compte en ligne] données d’entraînement non synchronisées', e));
       setPending(pendingCount(pid));
       setLastSync(Date.now());
       return added;
