@@ -10,6 +10,7 @@ import { sideToMove } from '../core/fen';
 import { materialSymbols } from '../core/material';
 import type { RushMode } from '../core/rush/rushRules';
 import type { ExamRecord } from '../core/exam';
+import { MAX_JOINED } from '../core/studentGroups';
 import type { Level, Puzzle } from '../core/types';
 import { useState, type ReactNode } from 'react';
 import type { BestScore } from '../services/highScores';
@@ -59,9 +60,9 @@ interface Props {
   motifs: MotifChoice[];
   motif: string;
   onMotif: (id: string) => void;
-  /** Devoirs en cours du groupe d'entraîneur rejoint. */
-  homework: { id: string; title: string; due: string; daysLeft: number; goal: number; done: number }[];
-  onHomework: (id: string) => void;
+  /** Devoirs en cours de tous les groupes rejoints (group : nom du groupe, affiché s'il y en a plusieurs). */
+  homework: { id: string; code: string; group: string | null; title: string; due: string; daysLeft: number; goal: number; done: number }[];
+  onHomework: (id: string, code: string) => void;
   playerName: string | null;
   /** Menu de l'en-tête : profils de l'appareil et compte connecté. */
   players: ProfileEntry[];
@@ -127,15 +128,19 @@ interface Props {
   challenge: { played: number; solved: number; total: number } | null;
   onChallenge: () => void;
   onTechnique: () => void;
-  /** Groupe d'entraîneur rejoint (thème « Entraîneur ») : null si aucun. */
+  /** Groupe d'entraîneur joué (thème « Entraîneur ») : null si aucun groupe rejoint. */
   coachGroup: { name: string; count: number; updatedAt: string; code: string } | null;
-  /** Rejoindre un groupe par son code ; renvoie un message d'erreur ou null. */
+  /** Tous les groupes rejoints par l'élève (10 au plus) ; tracked : résultats partagés dans ce groupe. */
+  coachGroups: { code: string; name: string; tracked: boolean }[];
+  /** Message après l'ouverture d'un lien de groupe (ex. limite de 10 groupes atteinte). */
+  coachNotice: string | null;
+  onSelectGroup: (code: string) => void;
+  /** Rejoindre un groupe par son code (sans quitter les autres) ; renvoie un message d'erreur ou null. */
   onJoinGroup: (code: string) => Promise<string | null>;
+  /** Quitter le groupe joué (les autres groupes ne changent pas). */
   onLeaveGroup: () => void;
-  /** Suivi par l'entraîneur : pseudo sous lequel l'élève partage ses résultats (null : pas de partage). */
+  /** Suivi par l'entraîneur du groupe joué : pseudo sous lequel l'élève partage ses résultats (null : pas de partage). */
   coachTracking: { pseudo: string } | null;
-  /** L'élève est suivi dans un AUTRE groupe que celui affiché (partager ici effacerait ce suivi). */
-  coachElsewhere: boolean;
   shareDeclined: boolean;
   onShare: (pseudo: string) => Promise<string | null>;
   onDeclineShare: () => void;
@@ -144,14 +149,12 @@ interface Props {
 
 function TrackingBox({
   tracking,
-  elsewhere,
   declined,
   onShare,
   onDecline,
   onStop,
 }: {
   tracking: { pseudo: string } | null;
-  elsewhere: boolean;
   declined: boolean;
   onShare: (pseudo: string) => Promise<string | null>;
   onDecline: () => void;
@@ -165,7 +168,7 @@ function TrackingBox({
   if (tracking) {
     return (
       <p className="mt-2 text-xs text-stone-400">
-        <Icon name="chart" className="h-3.5 w-3.5 text-emerald-300" /> Ton entraîneur suit tes résultats sur ses exercices, sous le pseudo{' '}
+        <Icon name="chart" className="h-3.5 w-3.5 text-emerald-300" /> L’entraîneur de ce groupe suit tes résultats sur ses exercices, sous le pseudo{' '}
         <strong className="text-stone-200">« {tracking.pseudo} »</strong>.{' '}
         <button type="button" onClick={onStop} className="text-sky-400 hover:underline">
           Ne plus partager (efface mes résultats)
@@ -176,7 +179,7 @@ function TrackingBox({
   if (declined && !open) {
     return (
       <p className="mt-2 text-xs text-stone-400">
-        Tes résultats ne sont pas partagés avec ton entraîneur.{' '}
+        Tes résultats ne sont pas partagés dans ce groupe.{' '}
         <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:underline">
           Les partager
         </button>
@@ -194,15 +197,10 @@ function TrackingBox({
       }}
     >
       <p>
-        <strong>Partager tes résultats avec ton entraîneur ?</strong> Il verra, sous ton pseudo seulement, tes scores sur ses exercices
-        (Storm, Streak, réussite, exercices ratés) pour t’aider à progresser. Personne d’autre ne les voit ; tu peux arrêter à tout moment.
+        <strong>Partager tes résultats avec l’entraîneur de ce groupe ?</strong> Il verra, sous ton pseudo seulement, tes scores sur les
+        exercices de ce groupe (Storm, Streak, réussite, exercices ratés) pour t’aider à progresser. Personne d’autre ne les voit ; tu peux
+        arrêter à tout moment. Tes autres groupes ne changent pas.
       </p>
-      {elsewhere && (
-        <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-amber-200" role="note">
-          Tu es actuellement suivi dans un autre groupe. Si tu partages ici, ton suivi dans l’ancien groupe sera effacé (seulement une fois
-          l’inscription ici réussie).
-        </p>
-      )}
       <input
         value={pseudo}
         onChange={(e) => setPseudo(e.target.value)}
@@ -237,66 +235,26 @@ function TrackingBox({
   );
 }
 
-function CoachGroupBox({
-  group,
-  tracked,
-  onJoin,
-  onLeave,
-}: {
-  group: HomeProps['coachGroup'];
-  /** Les résultats de l'élève sont suivis par l'entraîneur : quitter les efface. */
-  tracked: boolean;
-  onJoin: HomeProps['onJoinGroup'];
-  onLeave: () => void;
-}) {
+function JoinForm({ onJoin, intro, onCancel }: { onJoin: HomeProps['onJoinGroup']; intro: ReactNode; onCancel?: () => void }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
-  if (group) {
-    return (
-      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-stone-700 p-3 text-sm text-stone-200">
-        <span className="min-w-0 flex-1">
-          <Icon name="board" className="h-4 w-4 text-amber-300" /> Groupe <strong>« {group.name} »</strong> · {group.count} exercice{group.count > 1 ? 's' : ''},
-          du plus facile au plus difficile
-          {group.updatedAt && <span className="text-stone-400"> · mis à jour le {new Date(group.updatedAt).toLocaleDateString('fr-FR')}</span>}
-        </span>
-        {confirmLeave ? (
-          <span className="flex flex-wrap items-center gap-2 text-xs text-amber-200">
-            Quitter efface tes résultats chez ton entraîneur. Quitter ?
-            <button type="button" onClick={onLeave} className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-500">
-              Oui, quitter
-            </button>
-            <button type="button" onClick={() => setConfirmLeave(false)} className="rounded-md bg-stone-700 px-2 py-1 text-stone-100">
-              Rester
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => (tracked ? setConfirmLeave(true) : onLeave())}
-            className="text-xs text-stone-400 hover:text-stone-100 hover:underline"
-          >
-            Quitter le groupe
-          </button>
-        )}
-      </div>
-    );
-  }
   return (
     <form
       className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-stone-200"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
-        setError(await onJoin(code));
+        const err = await onJoin(code);
+        setError(err);
         setBusy(false);
+        if (!err) {
+          setCode('');
+          onCancel?.();
+        }
       }}
     >
-      <p>
-        Les exercices choisis par <strong>ton entraîneur</strong>. Entre le code de ton groupe (8 caractères), ou ouvre le lien qu’il t’a
-        envoyé.
-      </p>
+      <p>{intro}</p>
       <div className="flex flex-wrap gap-2">
         <input
           value={code}
@@ -311,9 +269,116 @@ function CoachGroupBox({
         <button type="submit" disabled={busy || code.trim().length !== 8} className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-stone-900 hover:bg-amber-400 disabled:opacity-40">
           {busy ? 'Recherche…' : 'Rejoindre'}
         </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="rounded-lg px-3 py-2 text-stone-300 hover:text-stone-50">
+            Annuler
+          </button>
+        )}
       </div>
       {error && <p className="text-red-300">{error}</p>}
     </form>
+  );
+}
+
+function CoachGroupBox({
+  group,
+  groups,
+  notice,
+  tracked,
+  onSelect,
+  onJoin,
+  onLeave,
+}: {
+  group: HomeProps['coachGroup'];
+  groups: HomeProps['coachGroups'];
+  notice: string | null;
+  /** Les résultats de l'élève sont suivis dans le groupe joué : le quitter les efface. */
+  tracked: boolean;
+  onSelect: (code: string) => void;
+  onJoin: HomeProps['onJoinGroup'];
+  onLeave: () => void;
+}) {
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [adding, setAdding] = useState(false);
+  if (!group) {
+    return (
+      <JoinForm
+        onJoin={onJoin}
+        intro={
+          <>
+            Les exercices choisis par <strong>ton entraîneur</strong>. Entre le code de ton groupe (8 caractères), ou ouvre le lien qu’il t’a
+            envoyé.
+          </>
+        }
+      />
+    );
+  }
+  return (
+    <>
+      {notice && <p className="mt-3 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200" role="note">{notice}</p>}
+      {groups.length > 1 && (
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Mes groupes">
+          {groups.map((g) => (
+            <button
+              key={g.code}
+              type="button"
+              aria-pressed={g.code === group.code}
+              onClick={() => {
+                setConfirmLeave(false);
+                onSelect(g.code);
+              }}
+              className={subChip(g.code === group.code)}
+            >
+              {g.name}
+              {g.tracked && <Icon name="chart" className="ml-1 h-3.5 w-3.5 opacity-70" />}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-stone-700 p-3 text-sm text-stone-200">
+        <span className="min-w-0 flex-1">
+          <Icon name="board" className="h-4 w-4 text-amber-300" /> Groupe <strong>« {group.name} »</strong> · {group.count} exercice{group.count > 1 ? 's' : ''},
+          du plus facile au plus difficile
+          {group.updatedAt && <span className="text-stone-400"> · mis à jour le {new Date(group.updatedAt).toLocaleDateString('fr-FR')}</span>}
+        </span>
+        {confirmLeave ? (
+          <span className="flex flex-wrap items-center gap-2 text-xs text-amber-200">
+            Quitter ce groupe efface tes résultats chez son entraîneur (tes autres groupes ne changent pas). Quitter ?
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmLeave(false);
+                onLeave();
+              }}
+              className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-500"
+            >
+              Oui, quitter
+            </button>
+            <button type="button" onClick={() => setConfirmLeave(false)} className="rounded-md bg-stone-700 px-2 py-1 text-stone-100">
+              Rester
+            </button>
+          </span>
+        ) : (
+          <span className="flex flex-wrap items-center gap-3 text-xs">
+            {groups.length < MAX_JOINED && !adding && (
+              <button type="button" onClick={() => setAdding(true)} className="text-sky-400 hover:underline">
+                + Ajouter un groupe
+              </button>
+            )}
+            <button type="button" onClick={() => (tracked ? setConfirmLeave(true) : onLeave())} className="text-stone-400 hover:text-stone-100 hover:underline">
+              Quitter ce groupe
+            </button>
+          </span>
+        )}
+      </div>
+      {adding && (
+        <JoinForm
+          onJoin={onJoin}
+          onCancel={() => setAdding(false)}
+          intro={<>Entre le code d’un autre groupe (8 caractères) : tu gardes aussi tes groupes actuels ({groups.length}/{MAX_JOINED}).</>}
+        />
+      )}
+    </>
   );
 }
 
@@ -379,7 +444,7 @@ function TodayCard({ p }: { p: Props }) {
       <ul className="divide-y divide-stone-700/60">
         {p.homework.map((hw) => (
           <TodayRow
-            key={hw.id}
+            key={`${hw.code}-${hw.id}`}
             icon="board"
             action={
               hw.done >= hw.goal ? (
@@ -387,13 +452,13 @@ function TodayCard({ p }: { p: Props }) {
                   <Icon name="check" className="h-4 w-4" /> fait
                 </span>
               ) : (
-                <button type="button" onClick={() => p.onHomework(hw.id)} className={todayBtn(true)}>
+                <button type="button" onClick={() => p.onHomework(hw.id, hw.code)} className={todayBtn(true)}>
                   Faire
                 </button>
               )
             }
           >
-            <strong>Devoir : {hw.title}</strong>{' '}
+            <strong>Devoir{hw.group ? ` (${hw.group})` : ''} : {hw.title}</strong>{' '}
             <span className="text-stone-400">
               · {hw.done}/{hw.goal} réussis · avant le {new Date(`${hw.due}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
             </span>
@@ -594,9 +659,19 @@ export function HomeScreen(p: Props) {
                 </button>
               ))}
             </div>
-            {p.theme === 'entraineur' && <CoachGroupBox group={p.coachGroup} tracked={p.coachTracking !== null} onJoin={p.onJoinGroup} onLeave={p.onLeaveGroup} />}
+            {p.theme === 'entraineur' && (
+              <CoachGroupBox
+                group={p.coachGroup}
+                groups={p.coachGroups}
+                notice={p.coachNotice}
+                tracked={p.coachTracking !== null}
+                onSelect={p.onSelectGroup}
+                onJoin={p.onJoinGroup}
+                onLeave={p.onLeaveGroup}
+              />
+            )}
             {p.theme === 'entraineur' && p.coachGroup && (
-              <TrackingBox tracking={p.coachTracking} elsewhere={p.coachElsewhere} declined={p.shareDeclined} onShare={p.onShare} onDecline={p.onDeclineShare} onStop={p.onStopShare} />
+              <TrackingBox key={p.coachGroup.code} tracking={p.coachTracking} declined={p.shareDeclined} onShare={p.onShare} onDecline={p.onDeclineShare} onStop={p.onStopShare} />
             )}
             {p.theme !== 'mix' && p.theme !== 'bases' && p.theme !== 'entraineur' && (
               <div className="mt-3 flex flex-wrap gap-2 border-l-2 border-stone-700 pl-3" aria-label="Sous-thèmes">

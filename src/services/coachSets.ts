@@ -1,12 +1,13 @@
 // Base d'exercices de l'entraîneur, en ligne (table coach_sets, migration 0008).
 //  - l'entraîneur (connecté) lit, remplace ou vide SA base ;
 //  - l'élève la lit par le code du groupe (fonction coach_set), sans compte ;
-//    une copie locale permet de jouer hors ligne.
+//    une copie locale de chaque groupe rejoint permet de jouer hors ligne (plusieurs groupes à la fois depuis le 05/10).
 
 import { newCoachCode, sanitizeCoachItems, COACH_CODE, type CoachItem } from '../core/coachSet';
 import { getCloud } from './cloud';
 import { sanitizeDetail } from '../core/coachProgress';
 import { sanitizeHomework, type Homework } from '../core/homework';
+import { emptyJoined, MAX_JOINED, migrateLegacy, removeGroup, selectGroup, setDeclined, upsertGroup, type JoinedState } from '../core/studentGroups';
 
 export interface CoachSet {
   code: string;
@@ -16,8 +17,6 @@ export interface CoachSet {
   /** Devoirs en cours (migration 0011). */
   homework: Homework[];
 }
-
-const CACHE = 'endgameRush:v1:coachGroup';
 
 async function cloud() {
   const c = await getCloud();
@@ -94,48 +93,23 @@ export async function saveHomework(code: string, homework: Homework[]): Promise<
   if (error) throw error;
 }
 
-/** Base d'un groupe, par son code (élève). Null si le code n'existe pas. */
+/** Base d'un groupe, par son code (élève). Null si le code n'existe pas. Ne modifie pas la liste des groupes rejoints. */
 export async function fetchGroupSet(code: string): Promise<CoachSet | null> {
   const clean = code.trim().toUpperCase();
   if (!COACH_CODE.test(clean)) return null;
   const { data, error } = await (await cloud()).rpc('coach_set', { p_code: clean });
   if (error) throw error;
   if (!data) return null;
-  const set: CoachSet = {
+  return {
     code: clean,
     name: String(data.name ?? 'Groupe'),
     items: sanitizeCoachItems(data.puzzles),
     updatedAt: String(data.updated_at ?? ''),
     homework: sanitizeHomework(data.homework),
   };
-  try {
-    window.localStorage.setItem(CACHE, JSON.stringify(set));
-  } catch {
-    /* sans stockage : pas de copie hors ligne */
-  }
-  return set;
 }
 
-/** Dernière copie locale du groupe rejoint (jeu hors ligne). */
-export function cachedGroupSet(): CoachSet | null {
-  try {
-    const raw = JSON.parse(window.localStorage.getItem(CACHE) ?? 'null') as CoachSet | null;
-    if (!raw || !COACH_CODE.test(raw.code)) return null;
-    return { code: raw.code, name: String(raw.name), items: sanitizeCoachItems(raw.items), updatedAt: String(raw.updatedAt), homework: sanitizeHomework(raw.homework) };
-  } catch {
-    return null;
-  }
-}
-
-export function forgetGroupSet(): void {
-  try {
-    window.localStorage.removeItem(CACHE);
-  } catch {
-    /* rien à faire */
-  }
-}
-
-// ---------------------------------------------------------------- Suivi des élèves (migration 0009)
+// ---------------------------------------------------------------- Groupes rejoints par l'élève (plusieurs à la fois)
 
 export interface Membership {
   code: string;
@@ -144,9 +118,15 @@ export interface Membership {
   pseudo: string;
 }
 
-const MEMBER = 'endgameRush:v1:coachMember';
-const DECLINED = 'endgameRush:v1:coachShareDeclined';
-const PENDING = 'endgameRush:v1:coachPending';
+// Ancien stockage (un seul groupe à la fois, jusqu'au 05/10/2026) : repris une fois puis effacé.
+const LEGACY_GROUP = 'endgameRush:v1:coachGroup';
+const LEGACY_MEMBER = 'endgameRush:v1:coachMember';
+const LEGACY_DECLINED = 'endgameRush:v1:coachShareDeclined';
+const LEGACY_PENDING = 'endgameRush:v1:coachPending';
+// Nouveau stockage : groupes rejoints (copies hors ligne, groupe actif, refus), suivis et résultats en attente PAR CODE.
+const JOINED = 'endgameRush:v2:coachGroups';
+const MEMBERS = 'endgameRush:v2:coachMembers';
+const PENDING = 'endgameRush:v2:coachPending';
 
 const readJson = <T,>(key: string, fallback: T): T => {
   try {
@@ -164,28 +144,125 @@ const writeJson = (key: string, value: unknown) => {
   }
 };
 
-export const membership = (): Membership | null => readJson<Membership | null>(MEMBER, null);
-/** L'élève a choisi de jouer sans partager ses résultats (pour ce groupe). */
-export const shareDeclined = (code: string): boolean => readJson<string | null>(DECLINED, null) === code;
-export const declineShare = (code: string | null) => writeJson(DECLINED, code);
+const cleanSet = (raw: unknown): CoachSet | null => {
+  const r = raw as Partial<CoachSet> | null;
+  if (!r || typeof r.code !== 'string' || !COACH_CODE.test(r.code)) return null;
+  return { code: r.code, name: String(r.name ?? 'Groupe'), items: sanitizeCoachItems(r.items), updatedAt: String(r.updatedAt ?? ''), homework: sanitizeHomework(r.homework) };
+};
+const cleanMember = (raw: unknown): Membership | null => {
+  const r = raw as Partial<Membership> | null;
+  if (!r || typeof r.code !== 'string' || !COACH_CODE.test(r.code) || typeof r.memberId !== 'string' || typeof r.secret !== 'string') return null;
+  return { code: r.code, memberId: r.memberId, secret: r.secret, pseudo: String(r.pseudo ?? '') };
+};
+
+/** Reprend l'ancien stockage à un seul groupe (une fois). */
+function migrateIfNeeded(): void {
+  try {
+    if (window.localStorage.getItem(JOINED) !== null) return;
+    const hasLegacy = [LEGACY_GROUP, LEGACY_MEMBER, LEGACY_DECLINED].some((k) => window.localStorage.getItem(k) !== null);
+    if (!hasLegacy) return;
+    const { state, members } = migrateLegacy(cleanSet(readJson(LEGACY_GROUP, null)), cleanMember(readJson(LEGACY_MEMBER, null)), readJson<string | null>(LEGACY_DECLINED, null));
+    const legacyMember = Object.values(members)[0];
+    const legacyPending = readJson<ReportEntry[]>(LEGACY_PENDING, []);
+    writeJson(JOINED, state);
+    writeJson(MEMBERS, members);
+    if (legacyMember && Array.isArray(legacyPending) && legacyPending.length) writeJson(PENDING, { [legacyMember.code]: legacyPending });
+    for (const k of [LEGACY_GROUP, LEGACY_MEMBER, LEGACY_DECLINED, LEGACY_PENDING]) window.localStorage.removeItem(k);
+  } catch {
+    /* sans stockage */
+  }
+}
+
+/** Groupes rejoints (copies locales pour jouer hors ligne), groupe actif et refus de partage. */
+export function joinedGroups(): JoinedState<CoachSet> {
+  migrateIfNeeded();
+  const raw = readJson<{ groups?: unknown; active?: unknown; declined?: unknown } | null>(JOINED, null);
+  if (!raw || !Array.isArray(raw.groups)) return emptyJoined<CoachSet>();
+  const groups = (raw.groups as unknown[]).map(cleanSet).filter((g): g is CoachSet => !!g).slice(0, MAX_JOINED);
+  const active = typeof raw.active === 'string' ? raw.active : null;
+  const declined = Array.isArray(raw.declined) ? (raw.declined as unknown[]) : [];
+  return {
+    groups,
+    active: active && groups.some((g) => g.code === active) ? active : (groups[0]?.code ?? null),
+    declined: declined.filter((c): c is string => typeof c === 'string' && COACH_CODE.test(c)),
+  };
+}
+const saveJoined = (s: JoinedState<CoachSet>) => writeJson(JOINED, s);
+
+/** Ajoute (ou met à jour) un groupe rejoint. Renvoie false si l'élève a déjà 10 groupes. */
+export function keepJoinedGroup(set: CoachSet, makeActive: boolean): boolean {
+  const next = upsertGroup(joinedGroups(), set, makeActive);
+  if (!next) return false;
+  saveJoined(next);
+  return true;
+}
+
+/** Choisit le groupe joué. */
+export function selectJoinedGroup(code: string): void {
+  saveJoined(selectGroup(joinedGroups(), code));
+}
+
+/** Retire un groupe de la liste (son suivi doit être quitté avant : voir leaveTracking). */
+export function forgetJoinedGroup(code: string): void {
+  saveJoined(removeGroup(joinedGroups(), code));
+}
+
+/** Suivis par groupe (code → inscription). */
+export function memberships(): Record<string, Membership> {
+  migrateIfNeeded();
+  const raw = readJson<Record<string, unknown>>(MEMBERS, {});
+  const out: Record<string, Membership> = {};
+  for (const [code, m] of Object.entries(raw ?? {})) {
+    const clean = cleanMember(m);
+    if (clean && clean.code === code) out[code] = clean;
+  }
+  return out;
+}
+export const membershipFor = (code: string): Membership | null => memberships()[code] ?? null;
+const setMembership = (code: string, m: Membership | null) => {
+  const all = memberships();
+  if (m) all[code] = m;
+  else delete all[code];
+  writeJson(MEMBERS, all);
+};
+
+const pendingFor = (code: string): ReportEntry[] => {
+  const all = readJson<Record<string, ReportEntry[]>>(PENDING, {});
+  return Array.isArray(all?.[code]) ? all[code] : [];
+};
+const setPending = (code: string, queue: ReportEntry[]) => {
+  const all = readJson<Record<string, ReportEntry[]>>(PENDING, {}) ?? {};
+  if (queue.length) all[code] = queue;
+  else delete all[code];
+  writeJson(PENDING, Object.keys(all).length ? all : null);
+};
+
+/** L'élève a choisi de jouer sans partager ses résultats dans ce groupe. */
+export const shareDeclined = (code: string): boolean => joinedGroups().declined.includes(code);
+export const declineShare = (code: string, declined = true) => saveJoined(setDeclined(joinedGroups(), code, declined));
 
 function newSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** Rejoindre le suivi du groupe sous un pseudo (consentement donné). Renvoie un message d'erreur, ou null. */
+/**
+ * Rejoindre le suivi d'UN groupe sous un pseudo (consentement donné). Les suivis dans les autres groupes ne changent
+ * pas. Renvoie un message d'erreur, ou null.
+ */
 export async function joinTracking(code: string, pseudo: string): Promise<string | null> {
   const clean = pseudo.trim();
   if (!/^[\p{L}\p{N} _.-]{2,30}$/u.test(clean)) return 'Pseudo : 2 à 30 caractères (lettres, chiffres, espace, _ . -).';
+  const old = membershipFor(code);
   const secret = newSecret();
   try {
     const { data, error } = await (await cloud()).rpc('coach_join', { p_code: code, p_pseudo: clean, p_secret: secret });
     if (error?.code === '23505') return 'Ce pseudo est déjà pris dans le groupe : choisis-en un autre.';
     if (error?.code === 'P0001') return 'Le groupe est complet (200 élèves).';
     if (error) throw error;
-    writeJson(MEMBER, { code, memberId: String(data), secret, pseudo: clean } satisfies Membership);
-    declineShare(null);
+    setMembership(code, { code, memberId: String(data), secret, pseudo: clean });
+    declineShare(code, false);
+    if (old) await leaveMembership(old); // ancienne inscription dans CE groupe (cas rare) : remplacée
     return null;
   } catch {
     return 'Inscription impossible pour le moment (connexion). Réessaie plus tard.';
@@ -201,27 +278,13 @@ async function leaveMembership(m: Membership): Promise<void> {
   }
 }
 
-/** Ne plus partager : l'élève est retiré du suivi et ses résultats sont supprimés. */
-export async function leaveTracking(): Promise<void> {
-  const m = membership();
-  writeJson(MEMBER, null);
-  writeJson(PENDING, null);
+/** Ne plus partager dans CE groupe : l'élève y est retiré du suivi et ses résultats y sont supprimés. */
+export async function leaveTracking(code: string): Promise<void> {
+  const m = membershipFor(code);
+  setMembership(code, null);
+  setPending(code, []);
   if (!m) return;
   await leaveMembership(m);
-}
-
-/**
- * Passer du suivi d'un groupe à celui d'un autre : on s'inscrit d'abord dans le nouveau, et on ne quitte l'ancien
- * qu'ensuite. Si l'inscription échoue (pseudo pris, groupe complet, réseau), l'ancien suivi reste intact.
- * Renvoie un message d'erreur, ou null.
- */
-export async function switchTracking(code: string, pseudo: string): Promise<string | null> {
-  const old = membership();
-  const err = await joinTracking(code, pseudo);
-  if (err) return err;
-  writeJson(PENDING, null); // résultats en attente de l'ancien groupe : jamais envoyés au nouveau
-  if (old) await leaveMembership(old);
-  return null;
 }
 
 export interface ReportEntry {
@@ -235,12 +298,12 @@ export interface ReportEntry {
   detail?: import('../core/coachProgress').CoachDetail[];
 }
 
-/** Envoie le résultat d'une partie (et ceux restés en attente faute de connexion). */
-export async function reportResult(entry: ReportEntry): Promise<void> {
-  const m = membership();
+/** Envoie le résultat d'une partie jouée sur la base du groupe `code` (et ceux de ce groupe restés en attente). */
+export async function reportResult(code: string, entry: ReportEntry): Promise<void> {
+  const m = membershipFor(code);
   if (!m) return;
-  const queue = [...readJson<ReportEntry[]>(PENDING, []), entry].slice(-50);
-  writeJson(PENDING, queue);
+  const queue = [...pendingFor(code), entry].slice(-50);
+  setPending(code, queue);
   const c = await cloud();
   while (queue.length) {
     const e = queue[0];
@@ -256,14 +319,14 @@ export async function reportResult(entry: ReportEntry): Promise<void> {
       p_detail: e.detail?.length ? e.detail : null,
     });
     if (error?.code === 'P0002') {
-      // Retiré du groupe par l'entraîneur : on arrête le partage.
-      writeJson(MEMBER, null);
-      writeJson(PENDING, null);
+      // Retiré de ce groupe par l'entraîneur : on arrête le partage dans ce groupe seulement.
+      setMembership(code, null);
+      setPending(code, []);
       return;
     }
     if (error) throw error;
     queue.shift();
-    writeJson(PENDING, queue);
+    setPending(code, queue);
   }
 }
 

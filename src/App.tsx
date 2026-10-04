@@ -30,7 +30,8 @@ import { newRaceCode, parseRaceCode } from './core/race';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
-import { cachedGroupSet, declineShare, fetchGroupSet, forgetGroupSet, leaveTracking, membership, reportResult, shareDeclined, switchTracking, type CoachSet } from './services/coachSets';
+import { declineShare, fetchGroupSet, forgetJoinedGroup, joinedGroups, joinTracking, keepJoinedGroup, leaveTracking, membershipFor, memberships, reportResult, selectJoinedGroup } from './services/coachSets';
+import { activeGroup, MAX_JOINED } from './core/studentGroups';
 import { coachDetail, coachIndexOf } from './core/coachProgress';
 import { coachPuzzles } from './core/coachSet';
 import { hasMotif, motifChoices } from './core/motifs';
@@ -186,39 +187,53 @@ export default function App() {
   // Sous-thème trop pauvre (< minPuzzlesPerTheme, ex. lien ▶ ou intégration) : on joue toute la famille.
   const effSub = sub === 'all' || !lichess || (counts.get(sub) ?? 0) >= CONFIG.minPuzzlesPerTheme ? sub : 'all';
   // --- Groupe d'entraîneur : ses exercices forment le thème « Entraîneur » -------
-  const [coachSet, setCoachSet] = useState<CoachSet | null>(() => cachedGroupSet());
-  const [member, setMember] = useState(() => membership());
-  const [declined, setDeclined] = useState(() => !!cachedGroupSet() && shareDeclined(cachedGroupSet()!.code));
-  const coachPool = useMemo(() => (coachSet ? coachPuzzles(coachSet.code, coachSet.items).map(classify) : []), [coachSet]);
-  const joinGroup = useCallback(async (code: string): Promise<string | null> => {
-    try {
-      const set = await fetchGroupSet(code);
-      if (!set) return 'Code inconnu : vérifie-le auprès de ton entraîneur.';
-      setCoachSet(set);
-      setDeclined(shareDeclined(set.code));
-      return null;
-    } catch {
-      return 'Groupe indisponible pour le moment (connexion). Réessaie plus tard.';
-    }
+  // Un élève peut être dans plusieurs groupes (10 au plus) : il en choisit un pour jouer (groupe actif).
+  const [joined, setJoined] = useState(() => joinedGroups());
+  const [members, setMembers] = useState(() => memberships());
+  const [coachNotice, setCoachNotice] = useState<string | null>(null);
+  const refreshGroups = useCallback(() => {
+    setJoined(joinedGroups());
+    setMembers(memberships());
   }, []);
+  const coachSet = useMemo(() => activeGroup(joined), [joined]);
+  const declined = !!coachSet && joined.declined.includes(coachSet.code);
+  const coachPool = useMemo(() => (coachSet ? coachPuzzles(coachSet.code, coachSet.items).map(classify) : []), [coachSet]);
+  const joinGroup = useCallback(
+    async (code: string): Promise<string | null> => {
+      try {
+        const set = await fetchGroupSet(code);
+        if (!set) return 'Code inconnu : vérifie-le auprès de ton entraîneur.';
+        if (!keepJoinedGroup(set, true)) return `Tu es déjà dans ${MAX_JOINED} groupes : quittes-en un avant d’en ajouter un autre.`;
+        setCoachNotice(null);
+        refreshGroups();
+        return null;
+      } catch {
+        return 'Groupe indisponible pour le moment (connexion). Réessaie plus tard.';
+      }
+    },
+    [refreshGroups],
+  );
   useEffect(() => {
-    // Lien #groupe=CODE : rejoindre et ouvrir le thème ; sinon, mise à jour silencieuse du groupe déjà rejoint.
-    const code = GROUP_LINK ?? coachSet?.code;
-    if (!code) return;
+    // Lien #groupe=CODE : ajouter ce groupe (sans quitter les autres) et ouvrir le thème.
     if (GROUP_LINK) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
       setTheme('entraineur');
       setMode((m) => (m === 'training' ? 'storm' : m));
+      void joinGroup(GROUP_LINK).then((err) => setCoachNotice(err));
     }
-    fetchGroupSet(code)
-      .then((set) => {
-        if (!set) return;
-        setCoachSet(set);
-        setDeclined(shareDeclined(set.code)); // le refus de partage est propre à chaque groupe
-      })
-      .catch(() => {
-        /* hors ligne : copie locale */
-      });
+    // Mise à jour silencieuse des autres groupes déjà rejoints (hors ligne : copies locales).
+    for (const g of joinedGroups().groups) {
+      if (g.code === GROUP_LINK) continue;
+      fetchGroupSet(g.code)
+        .then((set) => {
+          if (!set || !joinedGroups().groups.some((x) => x.code === set.code)) return; // quitté entre-temps
+          keepJoinedGroup(set, false);
+          refreshGroups();
+        })
+        .catch(() => {
+          /* hors ligne : copie locale */
+        });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- une fois à l'ouverture
   }, []);
 
@@ -294,9 +309,8 @@ export default function App() {
       const id = ensurePlayer();
       if (id) playerStore.addRun(id, { t: Date.now(), ...run });
       // Base de l'entraîneur : résultat envoyé à l'entraîneur si l'élève a accepté le suivi.
-      const member = membership();
-      if (run.theme.split('.')[0] === 'entraineur' && coachSet && member?.code === coachSet.code) {
-        reportResult({
+      if (run.theme.split('.')[0] === 'entraineur' && coachSet && membershipFor(coachSet.code)) {
+        reportResult(coachSet.code, {
           mode: run.mode,
           score: run.score,
           errors: run.errors,
@@ -347,17 +361,29 @@ export default function App() {
     return { streak: dayStreak(acts, now), daily, dailyResult: dailyTry ? dailyTry.ok : null };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId, lichess, screen]);
-  // --- Devoirs du groupe d'entraîneur (élève) ---------------------------------
+  // --- Devoirs de TOUS les groupes rejoints (élève) ----------------------------
   const homeworkToday = useMemo(() => {
-    if (!coachSet?.homework.length) return [];
+    if (!joined.groups.some((g) => g.homework.length)) return [];
     const now = Date.now();
     const acts = playerId ? playerStore.history(playerId).attempts : [];
-    return coachSet.homework
-      .map((hw) => ({ hw, info: dueInfo(hw, now), goal: homeworkGoal(coachSet.items, hw) }))
-      .filter(({ info, goal }) => goal > 0 && !info.late)
-      .map(({ hw, info, goal }) => ({ id: hw.id, title: hw.title, due: hw.due, daysLeft: info.daysLeft, goal, done: Math.min(goal, myHomeworkDone(acts, hw, coachSet.items, coachSet.code)) }));
+    const many = joined.groups.length > 1;
+    return joined.groups.flatMap((set) =>
+      set.homework
+        .map((hw) => ({ hw, info: dueInfo(hw, now), goal: homeworkGoal(set.items, hw) }))
+        .filter(({ info, goal }) => goal > 0 && !info.late)
+        .map(({ hw, info, goal }) => ({
+          id: hw.id,
+          code: set.code,
+          group: many ? set.name : null,
+          title: hw.title,
+          due: hw.due,
+          daysLeft: info.daysLeft,
+          goal,
+          done: Math.min(goal, myHomeworkDone(acts, hw, set.items, set.code)),
+        })),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recalculé au retour à l'accueil
-  }, [coachSet, playerId, screen]);
+  }, [joined, playerId, screen]);
   // --- Défi de la semaine : mêmes 10 positions pour tous, 1re tentative seulement ---
   const challenge = useMemo(() => {
     const now = Date.now();
@@ -919,7 +945,9 @@ export default function App() {
       motif={effMotif}
       onMotif={setMotif}
       homework={homeworkToday}
-      onHomework={(id) => {
+      onHomework={(id, code) => {
+        selectJoinedGroup(code); // le devoir se joue sur la base de SON groupe
+        refreshGroups();
         setMode('streak');
         setTheme('entraineur');
         setScreen({ name: 'rush', run: Date.now(), hw: id });
@@ -952,34 +980,36 @@ export default function App() {
       onJudgeQuiz={() => setScreen({ name: 'judgeQuiz' })}
       onCoach={(tab) => setScreen({ name: 'coach', tab })}
       coachGroup={coachSet ? { name: coachSet.name, count: coachSet.items.length, updatedAt: coachSet.updatedAt, code: coachSet.code } : null}
+      coachGroups={joined.groups.map((g) => ({ code: g.code, name: g.name, tracked: !!members[g.code] }))}
+      coachNotice={coachNotice}
+      onSelectGroup={(code) => {
+        selectJoinedGroup(code);
+        refreshGroups();
+      }}
       onJoinGroup={joinGroup}
       onLeaveGroup={() => {
-        void leaveTracking();
-        setMember(null);
-        forgetGroupSet();
-        setCoachSet(null);
+        if (!coachSet) return;
+        void leaveTracking(coachSet.code); // ce groupe seulement
+        forgetJoinedGroup(coachSet.code);
+        refreshGroups();
       }}
-      coachTracking={coachSet && member?.code === coachSet.code ? { pseudo: member.pseudo } : null}
-      coachElsewhere={!!coachSet && !!member && member.code !== coachSet.code}
+      coachTracking={coachSet && members[coachSet.code] ? { pseudo: members[coachSet.code].pseudo } : null}
       shareDeclined={declined}
       onShare={async (pseudo) => {
         if (!coachSet) return 'Rejoins d’abord un groupe.';
-        const err = await switchTracking(coachSet.code, pseudo); // nouveau groupe d'abord, ancien ensuite
-        if (!err) {
-          setMember(membership());
-          setDeclined(false);
-        }
+        const err = await joinTracking(coachSet.code, pseudo); // les suivis dans les autres groupes ne changent pas
+        if (!err) refreshGroups();
         return err;
       }}
       onDeclineShare={() => {
         if (coachSet) declineShare(coachSet.code);
-        setDeclined(true);
+        refreshGroups();
       }}
       onStopShare={() => {
-        void leaveTracking();
-        setMember(null);
-        if (coachSet) declineShare(coachSet.code);
-        setDeclined(true);
+        if (!coachSet) return;
+        void leaveTracking(coachSet.code);
+        declineShare(coachSet.code);
+        refreshGroups();
       }}
       onAnalysis={() => setScreen({ name: 'analysis' })}
       challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}

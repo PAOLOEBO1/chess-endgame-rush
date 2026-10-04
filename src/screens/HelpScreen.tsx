@@ -168,8 +168,9 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         who: 'Élève (sans compte)',
         points: [
           'Ouvre le lien reçu, ou choisis le thème « Entraîneur » et entre le code du groupe.',
-          'Ton entraîneur peut avoir plusieurs groupes, chacun avec son code : tu es dans un seul groupe à la fois.',
-          'Pour changer de groupe, ouvre le lien du nouveau groupe (ton suivi dans l’ancien n’est effacé que si tu acceptes de partager avec le nouveau), ou touche « Quitter le groupe » (cela efface ton suivi chez ton entraîneur) puis entre le nouveau code.',
+          'Tu peux être dans plusieurs groupes à la fois (10 au plus) : « + Ajouter un groupe » et entre son code, ou ouvre son lien. Tes autres groupes restent.',
+          'Touche le nom d’un groupe pour jouer ses exercices. Les devoirs de tous tes groupes apparaissent dans « Aujourd’hui ».',
+          'Le partage des résultats se choisit groupe par groupe (pseudo propre à chaque groupe). « Quitter ce groupe » n’efface ton suivi que dans ce groupe.',
         ],
       },
     ],
