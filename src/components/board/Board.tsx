@@ -100,6 +100,8 @@ export function Board({ fen, orientation, interactive, lastMove, marks = [], arr
       {pendingPromotion && (
         <PromotionPicker
           color={turn}
+          dest={pendingPromotion.to}
+          orientation={orientation}
           onPick={(piece) => {
             const { from, to } = pendingPromotion;
             setPendingPromotion(null);

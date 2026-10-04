@@ -7,10 +7,10 @@ import type { PlayedExercise, SolveInfo } from '../core/history';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PuzzleRunner, type PuzzleEnd } from '../components/PuzzleRunner';
 import { CONFIG } from '../core/config';
-import { countPieces } from '../core/fen';
+import { countPieces, sideToMove } from '../core/fen';
 import { remainingMs, rushReducer, startRush, targetRating, type RushMode, type RushState } from '../core/rush/rushRules';
 import { pickNext } from '../core/rush/selector';
-import type { Family, Puzzle } from '../core/types';
+import type { Color, Family, Puzzle } from '../core/types';
 import { endOfRunAdvice, type Advice } from '../core/advice';
 import { FAMILY_LABEL } from '../core/material';
 import { notifyParent } from '../embed';
@@ -78,12 +78,19 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
   const engineDownRef = useRef(false);
   const smallPool = useMemo(() => pool.filter((p) => countPieces(p.fen) <= CONFIG.tablebase.maxPieces), [pool]);
   const startedAtRef = useRef<number | null>(null);
+  // Couleur du joueur : fixée par le premier puzzle de la partie, puis tous les
+  // suivants sont tirés dans cette couleur (le sens de l'échiquier ne change jamais).
+  const runColor = useRef<Color | null>(null);
+  const ofRunColor = useCallback(
+    (list: Puzzle[]) => (runColor.current ? list.filter((p) => sideToMove(p.fen) === runColor.current) : list),
+    [],
+  );
 
   /** Tire un puzzle et vérifie (table ou moteur) que l'objectif annoncé est juste. */
   const findPlayable = useCallback(
     async (target: number): Promise<Puzzle | null> => {
       for (let attempt = 0; attempt < 8; attempt += 1) {
-        const candidate = pickNext(engineDownRef.current ? smallPool : pool, target, excluded.current, Math.random, {
+        const candidate = pickNext(ofRunColor(engineDownRef.current ? smallPool : pool), target, excluded.current, Math.random, {
           previousSubcategory: lastSub.current,
           previousRating: lastRating.current,
           recentlySeen,
@@ -109,7 +116,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
       }
       return null;
     },
-    [pool, smallPool, judge, recentlySeen],
+    [pool, smallPool, judge, recentlySeen, ofRunColor],
   );
 
   // Préparation du premier puzzle. Le chrono attend le premier coup du joueur.
@@ -123,6 +130,7 @@ export function RushScreen({ mode, pool, theme, startRating, scoreKey, judge, re
           setProblem('Aucun puzzle disponible pour ce choix.');
           return;
         }
+        runColor.current = sideToMove(first.fen);
         setCurrent(first);
         lastRating.current = first.rating;
         nextPuzzle.current = preload(findPlayable(startRating + eloStep(mode)));
