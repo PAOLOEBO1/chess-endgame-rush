@@ -326,7 +326,7 @@ export function useCloudAccount(
 
     startMfaEnroll: () =>
       run(async () => {
-        const { data, error } = await (await sb()).auth.mfa.enroll({ factorType: 'totp', friendlyName: `Endgame Rush ${Date.now()}` });
+        const { data, error } = await (await sb()).auth.mfa.enroll({ factorType: 'totp', friendlyName: `Gambix ${Date.now()}` });
         if (error) throw error;
         setEnrolling({ factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
       }),

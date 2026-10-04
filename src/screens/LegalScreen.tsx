@@ -22,7 +22,7 @@ export function LegalScreen({ onHome, onPrivacy }: { onHome: () => void; onPriva
 
       <Section title="Éditeur">
         <p>
-          Chess Endgame Rush est édité à titre non professionnel et non commercial par un particulier. Comme le permet la loi pour la
+          Gambix est édité à titre non professionnel et non commercial par un particulier. Comme le permet la loi pour la
           confiance dans l’économie numérique (article 1-1), l’éditeur ne publie pas son identité : elle a été communiquée à
           l’hébergeur ci-dessous.
         </p>

@@ -399,7 +399,7 @@ export function CoachScreen({ basics, judge, onHome, signedIn, onAccount, engine
       {/* Fiche imprimable : visible seulement à l'impression. */}
       <div className="hidden bg-white p-6 text-black print:block">
         <h1 className="text-xl font-bold">{seriesName}</h1>
-        <p className="mb-4 text-sm">Chess Endgame Rush · {items.length} positions · le camp au trait est en bas du diagramme.</p>
+        <p className="mb-4 text-sm">Gambix · {items.length} positions · le camp au trait est en bas du diagramme.</p>
         <div className="grid grid-cols-2 gap-6">
           {items.map((it, i) => (
             <figure key={i} className="break-inside-avoid">

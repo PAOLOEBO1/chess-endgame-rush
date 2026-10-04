@@ -29,5 +29,5 @@ export function recordExam(prev: ExamRecord | undefined, results: (boolean | nul
 /** Texte de résultat à partager (club, entraîneur). */
 export function examText(label: string, results: (boolean | null)[]): string {
   const marks = results.map((r, i) => `${i + 1}${r === true ? '✅' : '❌'}`).join(' ');
-  return `Test « ${label} » : ${examScore(results)}/${results.length}${examPassed(results) ? ' — thème maîtrisé 🏅' : ''} — ${marks} (Chess Endgame Rush)`;
+  return `Test « ${label} » : ${examScore(results)}/${results.length}${examPassed(results) ? ' — thème maîtrisé 🏅' : ''} — ${marks} (Gambix)`;
 }

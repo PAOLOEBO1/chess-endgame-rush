@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const STEPS = [
   {
     icon: '♔',
-    title: 'Bienvenue sur Endgame Rush',
+    title: 'Bienvenue sur Gambix',
     text: 'Des finales de vraies parties, jugées coup par coup par la table de finales (le résultat exact) et Stockfish.',
     items: ['⚡ Storm : 3 minutes, un maximum de finales', '🔥 Streak : la série s’arrête à la première erreur', '📚 Entraînement : Bases, leçons guidées, technique, sans chrono'],
   },

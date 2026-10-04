@@ -64,7 +64,7 @@ export function decodeSeries(hash: string, knownId: (id: string) => boolean): Se
 export function resultText(name: string, results: (boolean | null)[]): string {
   const ok = results.filter((r) => r === true).length;
   const marks = results.map((r, i) => `${i + 1}${r === true ? '✅' : r === false ? '❌' : '–'}`).join(' ');
-  return `Série « ${name} » : ${ok}/${results.length} réussies — ${marks} (Chess Endgame Rush)`;
+  return `Série « ${name} » : ${ok}/${results.length} réussies — ${marks} (Gambix)`;
 }
 
 export interface BulkLine {

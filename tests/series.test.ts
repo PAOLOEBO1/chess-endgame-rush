@@ -21,7 +21,7 @@ test('série par lien : entrées invalides ignorées, lien cassé refusé', () =
 });
 
 test('texte du résultat', () => {
-  assert.equal(resultText('Test', [true, false, null]), 'Série « Test » : 1/3 réussies — 1✅ 2❌ 3– (Chess Endgame Rush)');
+  assert.equal(resultText('Test', [true, false, null]), 'Série « Test » : 1/3 réussies — 1✅ 2❌ 3– (Gambix)');
 });
 
 test('ajout en masse : FEN, titre et objectif par ligne', () => {

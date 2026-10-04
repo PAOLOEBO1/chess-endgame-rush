@@ -55,7 +55,7 @@ export function InstallButton() {
           refresh((n) => n + 1);
         }}
         className="rounded-lg bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100 hover:bg-stone-700"
-        title="Installer Chess Endgame Rush sur cet appareil"
+        title="Installer Gambix sur cet appareil"
       >
         <Icon name="phone" className="h-4 w-4" /> Installer l’appli
       </button>

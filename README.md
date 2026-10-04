@@ -1,4 +1,6 @@
-# Chess Endgame Rush
+# Gambix
+
+*(anciennement « Chess Endgame Rush ».)*
 
 Entraînement aux finales d'échecs inspiré de Lichess Puzzle Storm / Streak.
 
@@ -43,7 +45,7 @@ npm run dev        # puis ouvrir http://localhost:5173
   src="https://mon-club.fr/finales/index.html?embed=1&mode=storm&theme=mix&level=1200"
   style="width:100%; max-width:1100px; aspect-ratio: 4 / 3; border:0; border-radius:12px"
   allow="autoplay"
-  title="Chess Endgame Rush"></iframe>
+  title="Gambix"></iframe>
 ```
 
 Paramètres d'URL (tous facultatifs) :

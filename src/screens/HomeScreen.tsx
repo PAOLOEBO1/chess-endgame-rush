@@ -516,8 +516,7 @@ export function HomeScreen(p: Props) {
         <div className="min-w-0">
           <h1 className={`font-extrabold text-stone-50 ${p.compact ? 'text-2xl' : 'text-2xl sm:text-4xl'}`}>
             <img src="icons/icon-192.png" alt="" width="40" height="40" className="mr-2 inline-block h-8 w-8 rounded-lg align-[-0.2em] sm:h-10 sm:w-10" />
-            <span className="sm:hidden">Endgame Rush</span>
-            <span className="hidden sm:inline">Chess Endgame Rush</span>
+            Gambix
           </h1>
           {!p.compact && (
             <p className="mt-2 hidden text-stone-400 sm:block">Finales de parties réelles, jugées coup par coup (table de finales et Stockfish).</p>

@@ -1,4 +1,4 @@
-# Mettre Chess Endgame Rush en ligne — pas à pas
+# Mettre Gambix en ligne — pas à pas
 
 Architecture : **site statique** (Cloudflare Pages) + **comptes et données** (Supabase).
 Aucun serveur à administrer. Seule la clé *publique* Supabase est dans le site ;

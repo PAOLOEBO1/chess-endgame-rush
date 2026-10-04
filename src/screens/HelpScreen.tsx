@@ -196,7 +196,7 @@ export function HelpScreen({ onHome, onGo }: { onHome: () => void; onGo: (target
         </button>
       </div>
       <p className="text-stone-300">
-        Chess Endgame Rush entraîne aux finales d’échecs : des parties réelles jugées coup par coup par la table de finales (résultat exact
+        Gambix entraîne aux finales d’échecs : des parties réelles jugées coup par coup par la table de finales (résultat exact
         jusqu’à 7 pièces) et Stockfish. Voici tout ce que tu peux y faire.
       </p>
       <nav aria-label="Sommaire" className="flex flex-wrap gap-2">

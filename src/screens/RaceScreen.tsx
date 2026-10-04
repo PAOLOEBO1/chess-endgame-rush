@@ -247,7 +247,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   const share = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'Course de finales', text: 'Viens courir avec moi sur Chess Endgame Rush !', url });
+        await navigator.share({ title: 'Course de finales', text: 'Viens courir avec moi sur Gambix !', url });
         return;
       }
       await navigator.clipboard.writeText(url);
