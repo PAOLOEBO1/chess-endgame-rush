@@ -29,13 +29,17 @@ const SECTIONS: { group: string; items: Section[] }[] = [
           'Chaque réussite ajoute du temps et fait monter la difficulté ; une erreur en retire.',
           'Choisis un thème (pions, tours, dames…), un motif si tu veux (zugzwang, pion avancé, coup calme…) et un niveau de départ.',
           'Un chrono par exercice mesure ton temps de réflexion : il est enregistré avec chaque tentative.',
+          'Tu joues toute la partie avec la même couleur, celle du premier exercice : l’échiquier ne se retourne jamais.',
         ],
         go: { label: 'Lancer un Storm', target: { kind: 'mode', mode: 'storm' } },
       },
       {
         icon: 'flame',
         title: 'Streak',
-        points: ['Sans chrono : la difficulté monte à chaque réussite, la série s’arrête à la première erreur.'],
+        points: [
+          'Sans chrono : la difficulté monte à chaque réussite, la série s’arrête à la première erreur.',
+          'Comme en Storm, tu gardes la même couleur du début à la fin.',
+        ],
         go: { label: 'Lancer un Streak', target: { kind: 'mode', mode: 'streak' } },
       },
       {
@@ -152,7 +156,11 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         icon: 'board',
         title: 'Rejoindre le groupe de son entraîneur',
         who: 'Élève (sans compte)',
-        points: ['Ouvre le lien reçu, ou choisis le thème « Entraîneur » et entre le code du groupe.'],
+        points: [
+          'Ouvre le lien reçu, ou choisis le thème « Entraîneur » et entre le code du groupe.',
+          'Ton entraîneur peut avoir plusieurs groupes, chacun avec son code : tu es dans un seul groupe à la fois.',
+          'Pour changer de groupe, ouvre le lien du nouveau groupe, ou touche « Quitter le groupe » puis entre le nouveau code. Quitter efface ton suivi chez l’ancien entraîneur.',
+        ],
       },
     ],
   },
@@ -160,6 +168,7 @@ const SECTIONS: { group: string; items: Section[] }[] = [
 
 const TIPS = [
   'Jouer au clavier : tape le coup en notation anglaise (Rd8, e4, Kd2) sous l’échiquier.',
+  'Promotion d’un pion : une colonne de pièces (dame, cavalier, tour, fou) apparaît sur la case d’arrivée ; touche la pièce voulue, ou touche ailleurs pour annuler.',
   'Installer l’appli : bouton « Installer » dans l’en-tête, ou « Ajouter à l’écran d’accueil » du navigateur.',
   'Hors ligne : l’appli fonctionne sans connexion ; ce que tu joues est envoyé au retour du réseau.',
   'Réglages (roue dentée en haut à droite) : son, apparence claire ou sombre, grand affichage pour projeter au club, couleurs de l’échiquier, répétition espacée.',

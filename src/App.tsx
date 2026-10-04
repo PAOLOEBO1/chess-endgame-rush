@@ -29,7 +29,7 @@ import { openedFromEmailLink } from './services/cloud';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
-import { cachedGroupSet, declineShare, fetchGroupSet, forgetGroupSet, joinTracking, leaveTracking, membership, reportResult, shareDeclined, type CoachSet } from './services/coachSets';
+import { cachedGroupSet, declineShare, fetchGroupSet, forgetGroupSet, leaveTracking, membership, reportResult, shareDeclined, switchTracking, type CoachSet } from './services/coachSets';
 import { coachDetail, coachIndexOf } from './core/coachProgress';
 import { coachPuzzles } from './core/coachSet';
 import { hasMotif, motifChoices } from './core/motifs';
@@ -205,7 +205,11 @@ export default function App() {
       setMode((m) => (m === 'training' ? 'storm' : m));
     }
     fetchGroupSet(code)
-      .then((set) => set && setCoachSet(set))
+      .then((set) => {
+        if (!set) return;
+        setCoachSet(set);
+        setDeclined(shareDeclined(set.code)); // le refus de partage est propre à chaque groupe
+      })
       .catch(() => {
         /* hors ligne : copie locale */
       });
@@ -926,11 +930,11 @@ export default function App() {
         setCoachSet(null);
       }}
       coachTracking={coachSet && member?.code === coachSet.code ? { pseudo: member.pseudo } : null}
+      coachElsewhere={!!coachSet && !!member && member.code !== coachSet.code}
       shareDeclined={declined}
       onShare={async (pseudo) => {
         if (!coachSet) return 'Rejoins d’abord un groupe.';
-        if (member) await leaveTracking(); // ancien groupe
-        const err = await joinTracking(coachSet.code, pseudo);
+        const err = await switchTracking(coachSet.code, pseudo); // nouveau groupe d'abord, ancien ensuite
         if (!err) {
           setMember(membership());
           setDeclined(false);

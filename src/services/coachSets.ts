@@ -192,17 +192,36 @@ export async function joinTracking(code: string, pseudo: string): Promise<string
   }
 }
 
+/** Retire un suivi précis côté entraîneur (résultats supprimés avec lui). */
+async function leaveMembership(m: Membership): Promise<void> {
+  try {
+    await (await cloud()).rpc('coach_leave', { p_member: m.memberId, p_secret: m.secret });
+  } catch {
+    /* hors ligne : l'entraîneur peut aussi retirer l'élève ; effacement automatique après un an */
+  }
+}
+
 /** Ne plus partager : l'élève est retiré du suivi et ses résultats sont supprimés. */
 export async function leaveTracking(): Promise<void> {
   const m = membership();
   writeJson(MEMBER, null);
   writeJson(PENDING, null);
   if (!m) return;
-  try {
-    await (await cloud()).rpc('coach_leave', { p_member: m.memberId, p_secret: m.secret });
-  } catch {
-    /* hors ligne : l'entraîneur peut aussi retirer l'élève ; effacement automatique après un an */
-  }
+  await leaveMembership(m);
+}
+
+/**
+ * Passer du suivi d'un groupe à celui d'un autre : on s'inscrit d'abord dans le nouveau, et on ne quitte l'ancien
+ * qu'ensuite. Si l'inscription échoue (pseudo pris, groupe complet, réseau), l'ancien suivi reste intact.
+ * Renvoie un message d'erreur, ou null.
+ */
+export async function switchTracking(code: string, pseudo: string): Promise<string | null> {
+  const old = membership();
+  const err = await joinTracking(code, pseudo);
+  if (err) return err;
+  writeJson(PENDING, null); // résultats en attente de l'ancien groupe : jamais envoyés au nouveau
+  if (old) await leaveMembership(old);
+  return null;
 }
 
 export interface ReportEntry {

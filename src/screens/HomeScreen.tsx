@@ -132,6 +132,8 @@ interface Props {
   onLeaveGroup: () => void;
   /** Suivi par l'entraîneur : pseudo sous lequel l'élève partage ses résultats (null : pas de partage). */
   coachTracking: { pseudo: string } | null;
+  /** L'élève est suivi dans un AUTRE groupe que celui affiché (partager ici effacerait ce suivi). */
+  coachElsewhere: boolean;
   shareDeclined: boolean;
   onShare: (pseudo: string) => Promise<string | null>;
   onDeclineShare: () => void;
@@ -140,12 +142,14 @@ interface Props {
 
 function TrackingBox({
   tracking,
+  elsewhere,
   declined,
   onShare,
   onDecline,
   onStop,
 }: {
   tracking: { pseudo: string } | null;
+  elsewhere: boolean;
   declined: boolean;
   onShare: (pseudo: string) => Promise<string | null>;
   onDecline: () => void;
@@ -191,6 +195,12 @@ function TrackingBox({
         <strong>Partager tes résultats avec ton entraîneur ?</strong> Il verra, sous ton pseudo seulement, tes scores sur ses exercices
         (Storm, Streak, réussite, exercices ratés) pour t’aider à progresser. Personne d’autre ne les voit ; tu peux arrêter à tout moment.
       </p>
+      {elsewhere && (
+        <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-amber-200" role="note">
+          Tu es actuellement suivi dans un autre groupe. Si tu partages ici, ton suivi dans l’ancien groupe sera effacé (seulement une fois
+          l’inscription ici réussie).
+        </p>
+      )}
       <input
         value={pseudo}
         onChange={(e) => setPseudo(e.target.value)}
@@ -225,10 +235,22 @@ function TrackingBox({
   );
 }
 
-function CoachGroupBox({ group, onJoin, onLeave }: { group: HomeProps['coachGroup']; onJoin: HomeProps['onJoinGroup']; onLeave: () => void }) {
+function CoachGroupBox({
+  group,
+  tracked,
+  onJoin,
+  onLeave,
+}: {
+  group: HomeProps['coachGroup'];
+  /** Les résultats de l'élève sont suivis par l'entraîneur : quitter les efface. */
+  tracked: boolean;
+  onJoin: HomeProps['onJoinGroup'];
+  onLeave: () => void;
+}) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   if (group) {
     return (
       <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-stone-700 p-3 text-sm text-stone-200">
@@ -237,9 +259,25 @@ function CoachGroupBox({ group, onJoin, onLeave }: { group: HomeProps['coachGrou
           du plus facile au plus difficile
           {group.updatedAt && <span className="text-stone-400"> · mis à jour le {new Date(group.updatedAt).toLocaleDateString('fr-FR')}</span>}
         </span>
-        <button type="button" onClick={onLeave} className="text-xs text-stone-400 hover:text-stone-100 hover:underline">
-          Quitter le groupe
-        </button>
+        {confirmLeave ? (
+          <span className="flex flex-wrap items-center gap-2 text-xs text-amber-200">
+            Quitter efface tes résultats chez ton entraîneur. Quitter ?
+            <button type="button" onClick={onLeave} className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-500">
+              Oui, quitter
+            </button>
+            <button type="button" onClick={() => setConfirmLeave(false)} className="rounded-md bg-stone-700 px-2 py-1 text-stone-100">
+              Rester
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => (tracked ? setConfirmLeave(true) : onLeave())}
+            className="text-xs text-stone-400 hover:text-stone-100 hover:underline"
+          >
+            Quitter le groupe
+          </button>
+        )}
       </div>
     );
   }
@@ -555,9 +593,9 @@ export function HomeScreen(p: Props) {
                 </button>
               ))}
             </div>
-            {p.theme === 'entraineur' && <CoachGroupBox group={p.coachGroup} onJoin={p.onJoinGroup} onLeave={p.onLeaveGroup} />}
+            {p.theme === 'entraineur' && <CoachGroupBox group={p.coachGroup} tracked={p.coachTracking !== null} onJoin={p.onJoinGroup} onLeave={p.onLeaveGroup} />}
             {p.theme === 'entraineur' && p.coachGroup && (
-              <TrackingBox tracking={p.coachTracking} declined={p.shareDeclined} onShare={p.onShare} onDecline={p.onDeclineShare} onStop={p.onStopShare} />
+              <TrackingBox tracking={p.coachTracking} elsewhere={p.coachElsewhere} declined={p.shareDeclined} onShare={p.onShare} onDecline={p.onDeclineShare} onStop={p.onStopShare} />
             )}
             {p.theme !== 'mix' && p.theme !== 'bases' && p.theme !== 'entraineur' && (
               <div className="mt-3 flex flex-wrap gap-2 border-l-2 border-stone-700 pl-3" aria-label="Sous-thèmes">
