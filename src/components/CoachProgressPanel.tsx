@@ -62,12 +62,13 @@ export function CoachProgressPanel({ set, onSetChange }: Props) {
   const [view, setView] = useState<View>('eleves');
   const [student, setStudent] = useState<string | null>(null);
 
+  const groupCode = set.code;
   const load = useCallback(() => {
     setError(null);
-    fetchProgress()
+    fetchProgress(groupCode)
       .then(setMembers)
-      .catch(() => setError('Suivi indisponible (réseau, ou migration pas encore exécutée).'));
-  }, []);
+      .catch(() => setError('Suivi indisponible (réseau, ou migration 0012 pas encore exécutée).'));
+  }, [groupCode]);
   useEffect(load, [load]);
 
   const items = set.items;
@@ -84,7 +85,7 @@ export function CoachProgressPanel({ set, onSetChange }: Props) {
     <section className="flex flex-col gap-3 rounded-xl border border-stone-700 bg-stone-800/60 p-4 text-sm text-stone-200">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-bold text-stone-50">
-          <Icon name="chart" className="h-5 w-5 text-amber-300" /> Suivi de mes élèves
+          <Icon name="chart" className="h-5 w-5 text-amber-300" /> Suivi de mes élèves · {set.name}
         </h2>
         <div className="flex flex-wrap gap-2">
           {members && members.length > 0 && (

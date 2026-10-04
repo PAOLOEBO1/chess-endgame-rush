@@ -129,12 +129,12 @@ const SECTIONS: { group: string; items: Section[] }[] = [
     items: [
       {
         icon: 'library',
-        title: 'Exercices de mon groupe',
+        title: 'Exercices de mes groupes',
         who: 'Entraîneur (compte nécessaire)',
         points: [
           'Importe tes exercices en PGN : tes élèves les jouent en Storm et en Streak (thème « Entraîneur »), du plus facile au plus difficile.',
           'En-tête [Theme "Opposition"] : tes élèves peuvent travailler un motif précis.',
-          'Partage par un code ou un lien ; chaque import remplace la base.',
+          'Partage par un code ou un lien ; chaque import remplace la base du groupe. Tu peux avoir jusqu’à 10 groupes (classes, niveaux…), chacun avec son code, son PGN, ses devoirs et son suivi.',
           'Suivi des élèves qui l’acceptent (pseudo) : fiche de chaque élève (Elo sur ta base et sa courbe, réussite, temps médian, plafond de difficulté, motifs faibles, types d’erreurs), carte du groupe par motif, alerte d’inactivité, export CSV.',
           'Fiche de chaque exercice (réussite, temps, erreurs fréquentes) et recalibrage de son Elo d’après les résultats réels.',
           'Devoirs : « réussir N exercices de tel motif avant telle date » ; l’élève le voit dans « Aujourd’hui », tu suis qui l’a terminé.',

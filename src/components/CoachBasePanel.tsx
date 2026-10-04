@@ -13,7 +13,7 @@ import {
   type CoachDraft,
 } from '../core/coachSet';
 import { toCp } from '../core/judge/engineJudge';
-import { fetchMySet, replaceMySet, type CoachSet } from '../services/coachSets';
+import { deleteMySet, fetchMySets, MAX_GROUPS, renameMySet, replaceMySet, type CoachSet } from '../services/coachSets';
 import type { Engine } from '../services/stockfish';
 import { Icon } from './Icon';
 import { CoachProgressPanel } from './CoachProgressPanel';
@@ -31,8 +31,15 @@ const TIERS_MS = [30, 120, 400, 1500];
 
 type Parsed = { drafts: CoachDraft[]; skipped: string[] };
 
+/** Dernier groupe consulté (gardé quand on passe de « Mon groupe » à « Suivi des élèves »). */
+let lastGroup: string | null = null;
+
 export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: Props) {
-  const [set, setSet] = useState<CoachSet | null>(null);
+  const [sets, setSets] = useState<CoachSet[]>([]);
+  const [selected, setSelected] = useState<string | null>(lastGroup);
+  const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [loading, setLoading] = useState(signedIn);
   const [parsed, setParsed] = useState<Parsed | null>(null);
   const [mode, setMode] = useState<'estimate' | 'order'>('estimate');
@@ -44,16 +51,26 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
   const cancelled = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // Groupe affiché : celui qu'on vient de choisir, sinon le dernier consulté, sinon le plus ancien.
+  const set = creating ? null : (sets.find((x) => x.code === selected) ?? sets[0] ?? null);
+  /** Met à jour (ou ajoute) un groupe dans la liste. */
+  const setSet = (next: CoachSet) => setSets((list) => (list.some((x) => x.code === next.code) ? list.map((x) => (x.code === next.code ? next : x)) : [...list, next]));
+
   useEffect(() => {
     if (!signedIn) return;
     let stop = false;
-    fetchMySet()
-      .then((s) => {
+    fetchMySets()
+      .then((list) => {
         if (stop) return;
-        setSet(s);
-        if (s) setName(s.name);
+        setSets(list);
+        const first = list.find((x) => x.code === lastGroup) ?? list[0];
+        if (first) {
+          setSelected(first.code);
+          lastGroup = first.code;
+          setName(first.name);
+        }
       })
-      .catch(() => !stop && setMessage({ tone: 'error', text: 'Base indisponible (réseau, ou migration 0008 pas encore exécutée).' }))
+      .catch(() => !stop && setMessage({ tone: 'error', text: 'Groupes indisponibles (réseau, ou migration 0012 pas encore exécutée).' }))
       .finally(() => !stop && setLoading(false));
     return () => {
       stop = true;
@@ -61,6 +78,64 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
   }, [signedIn]);
 
   const link = set ? `${window.location.origin}${window.location.pathname}#groupe=${set.code}` : '';
+
+  const resetEditing = () => {
+    setParsed(null);
+    setDoubtful([]);
+    setMessage(null);
+    setConfirmClear(false);
+    setConfirmDelete(false);
+    setRenaming(null);
+  };
+  const selectGroup = (code: string) => {
+    const target = sets.find((x) => x.code === code);
+    if (!target) return;
+    resetEditing();
+    setCreating(false);
+    setSelected(code);
+    lastGroup = code;
+    setName(target.name);
+  };
+  const startCreate = () => {
+    resetEditing();
+    setCreating(true);
+    setName('');
+  };
+  const cancelCreate = () => {
+    const back = sets.find((x) => x.code === selected) ?? sets[0];
+    resetEditing();
+    setCreating(false);
+    if (back) setName(back.name);
+  };
+  const rename = async () => {
+    const next = (renaming ?? '').trim().slice(0, 60);
+    if (!set || !next) return;
+    try {
+      await renameMySet(set.code, next);
+      setSet({ ...set, name: next });
+      setName(next);
+      setRenaming(null);
+      setMessage({ tone: 'ok', text: `Groupe renommé : « ${next} ».` });
+    } catch {
+      setMessage({ tone: 'error', text: 'Renommage impossible pour le moment.' });
+    }
+  };
+  const removeGroup = async () => {
+    if (!set) return;
+    setConfirmDelete(false);
+    try {
+      await deleteMySet(set.code);
+      const rest = sets.filter((x) => x.code !== set.code);
+      setSets(rest);
+      const next = rest[0] ?? null;
+      setSelected(next?.code ?? null);
+      lastGroup = next?.code ?? null;
+      setName(next?.name ?? '');
+      setMessage({ tone: 'ok', text: `Groupe « ${set.name} » supprimé, avec son suivi.` });
+    } catch {
+      setMessage({ tone: 'error', text: 'Suppression impossible pour le moment.' });
+    }
+  };
 
   const readFiles = async (files: FileList) => {
     const items: PgnExercise[] = [];
@@ -124,14 +199,29 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
     }
     setProgress('Envoi…');
     try {
-      const saved = await replaceMySet(name.trim().slice(0, 60) || 'Exercices du groupe', finalizeItems(drafts, ratings));
+      const isNew = !set;
+      const saved = await replaceMySet(name.trim().slice(0, 60) || 'Exercices du groupe', finalizeItems(drafts, ratings), set?.code);
       setSet(saved);
+      setSelected(saved.code);
+      lastGroup = saved.code;
+      setCreating(false);
       setParsed(null);
       setDoubtful(warn);
-      setMessage({ tone: 'ok', text: `Base remplacée : ${saved.items.length} exercices, du plus facile au plus difficile.` });
+      setMessage({
+        tone: 'ok',
+        text: isNew
+          ? `Groupe « ${saved.name} » créé : ${saved.items.length} exercices, du plus facile au plus difficile. Son code et son lien sont ci-dessus.`
+          : `Base remplacée : ${saved.items.length} exercices, du plus facile au plus difficile.`,
+      });
     } catch (e) {
       const code = (e as { code?: string } | null)?.code;
-      setMessage({ tone: 'error', text: `Envoi impossible${code ? ` (code ${code})` : ''} : ta base n’a pas été modifiée.` });
+      setMessage({
+        tone: 'error',
+        text:
+          code === 'P0001'
+            ? `Tu as déjà ${MAX_GROUPS} groupes : supprime-en un avant d’en créer un nouveau.`
+            : `Envoi impossible${code ? ` (code ${code})` : ''} : ta base n’a pas été modifiée.`,
+      });
     } finally {
       setProgress(null);
     }
@@ -140,7 +230,7 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
   const clear = async () => {
     setConfirmClear(false);
     try {
-      const saved = await replaceMySet(set?.name ?? 'Exercices du groupe', []);
+      const saved = await replaceMySet(set?.name ?? 'Exercices du groupe', [], set?.code);
       setSet(saved);
       setMessage({ tone: 'ok', text: 'Base vidée. Tes élèves ne voient plus d’exercices tant que tu n’en importes pas de nouveaux.' });
     } catch {
@@ -160,6 +250,35 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
   const input = 'rounded-lg bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500';
   const busy = progress !== null;
 
+  /** Choix du groupe (dès qu'il y en a un) ; en mode « Mon groupe », création d'un nouveau groupe. */
+  const switcher =
+    signedIn && !loading && sets.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-stone-300">
+          Groupe
+          <select
+            value={creating ? '' : (set?.code ?? '')}
+            onChange={(e) => selectGroup(e.target.value)}
+            disabled={busy}
+            className="max-w-[16rem] rounded-lg bg-stone-900 px-3 py-2 text-stone-100"
+          >
+            {creating && <option value="">Nouveau groupe…</option>}
+            {sets.map((x) => (
+              <option key={x.code} value={x.code}>
+                {x.name} ({x.items.length})
+              </option>
+            ))}
+          </select>
+        </label>
+        {view === 'base' && !creating && sets.length < MAX_GROUPS && (
+          <button type="button" disabled={busy} onClick={startCreate} className="rounded-lg bg-stone-700 px-3 py-2 font-semibold text-stone-100 hover:bg-stone-600 disabled:opacity-40">
+            <Icon name="plus" className="h-4 w-4" /> Nouveau groupe
+          </button>
+        )}
+        {view === 'base' && !creating && sets.length >= MAX_GROUPS && <span className="text-xs text-stone-400">{MAX_GROUPS} groupes au plus.</span>}
+      </div>
+    ) : null;
+
   if (view === 'suivi') {
     return !signedIn ? (
       <p className="text-sm text-stone-300">
@@ -171,7 +290,10 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
     ) : loading ? (
       <p className="text-sm text-stone-400">Chargement…</p>
     ) : set ? (
-      <CoachProgressPanel set={set} onSetChange={setSet} />
+      <div className="flex flex-col gap-3">
+        {switcher}
+        <CoachProgressPanel key={set.code} set={set} onSetChange={setSet} />
+      </div>
     ) : (
       <p className="text-sm text-stone-400">Importe d’abord tes exercices (onglet « Mon groupe ») et envoie le lien à tes élèves.</p>
     );
@@ -180,11 +302,11 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-stone-800/60 p-4">
       <h2 className="font-bold text-stone-50">
-        <Icon name="library" className="h-5 w-5 text-amber-300" /> Exercices de mon groupe (Storm et Streak)
+        <Icon name="library" className="h-5 w-5 text-amber-300" /> Exercices de mes groupes (Storm et Streak)
       </h2>
       <p className="text-sm text-stone-400">
         Importe tes propres exercices en PGN : tes élèves les jouent en Storm ou en Streak avec le thème <strong>« Entraîneur »</strong>, du
-        plus facile au plus difficile. Chaque import <strong>remplace toute ta base</strong> (et efface les devoirs, liés aux rangs des exercices).
+        plus facile au plus difficile. Tu peux avoir jusqu’à {MAX_GROUPS} groupes (une classe, un niveau…), chacun avec son code, son PGN, ses devoirs et son suivi. Chaque import <strong>remplace toute la base du groupe affiché</strong> (et efface ses devoirs, liés aux rangs des exercices).
       </p>
 
       {!signedIn ? (
@@ -198,6 +320,15 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
         <p className="text-sm text-stone-400">Chargement de ta base…</p>
       ) : (
         <>
+          {switcher}
+          {creating && (
+            <p className="rounded-lg bg-stone-900/60 p-3 text-sm text-stone-200">
+              <strong>Nouveau groupe.</strong> Choisis un fichier PGN et donne un nom au groupe : il aura son propre code et son propre lien.{' '}
+              <button type="button" onClick={cancelCreate} className="font-semibold text-sky-400 hover:underline">
+                Annuler
+              </button>
+            </p>
+          )}
           {set && (
             <div className="flex flex-col gap-2 rounded-lg bg-stone-900/60 p-3 text-sm text-stone-200">
               <p>
@@ -229,6 +360,44 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
                   ))}
               </div>
               <input readOnly value={link} onFocus={(e) => e.target.select()} className={`${input} font-mono text-xs`} aria-label="Lien du groupe" />
+              {renaming !== null ? (
+                <form
+                  className="flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void rename();
+                  }}
+                >
+                  <input className={input} value={renaming} maxLength={60} onChange={(e) => setRenaming(e.target.value)} aria-label="Nouveau nom du groupe" autoFocus />
+                  <button type="submit" disabled={!renaming.trim()} className="rounded-md bg-amber-500 px-3 py-2 font-semibold text-stone-900 hover:bg-amber-400 disabled:opacity-40">
+                    Enregistrer
+                  </button>
+                  <button type="button" onClick={() => setRenaming(null)} className="rounded-md bg-stone-700 px-3 py-2 text-stone-100">
+                    Annuler
+                  </button>
+                </form>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <button type="button" onClick={() => setRenaming(set.name)} className="font-semibold text-sky-400 hover:underline">
+                    Renommer le groupe
+                  </button>
+                  {confirmDelete ? (
+                    <span className="flex flex-wrap items-center gap-2 text-red-300">
+                      Supprimer ce groupe, ses devoirs et le suivi de ses élèves ?
+                      <button type="button" onClick={() => void removeGroup()} className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-500">
+                        Oui, supprimer
+                      </button>
+                      <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-md bg-stone-700 px-2 py-1 text-stone-100">
+                        Annuler
+                      </button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmDelete(true)} className="text-red-300 hover:underline">
+                      Supprimer le groupe
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -304,7 +473,7 @@ export function CoachBasePanel({ signedIn, onAccount, engine, view = 'base' }: P
               </fieldset>
               <div className="flex flex-wrap gap-2">
                 <button type="button" disabled={busy} onClick={() => void importNow()} className="rounded-xl bg-amber-500 px-5 py-3 font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40">
-                  {set?.items.length ? `Remplacer ma base (${set.items.length}) par ces exercices` : 'Créer ma base avec ces exercices'}
+                  {!set ? 'Créer le groupe avec ces exercices' : set.items.length ? `Remplacer la base du groupe (${set.items.length}) par ces exercices` : 'Remplir le groupe avec ces exercices'}
                 </button>
                 {busy && mode === 'estimate' && (
                   <button type="button" onClick={() => (cancelled.current = true)} className="rounded-xl bg-stone-700 px-4 py-3 font-semibold text-stone-100">

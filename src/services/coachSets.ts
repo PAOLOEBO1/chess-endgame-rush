@@ -25,33 +25,61 @@ async function cloud() {
   return c;
 }
 
-/** Base de l'entraîneur connecté (null : pas encore créée). */
-export async function fetchMySet(): Promise<CoachSet | null> {
-  const { data, error } = await (await cloud()).from('coach_sets').select('code, name, puzzles, updated_at, homework').maybeSingle();
+/** Un entraîneur peut avoir jusqu'à 10 groupes (migration 0012). */
+export const MAX_GROUPS = 10;
+
+const COLUMNS = 'code, name, puzzles, updated_at, homework';
+interface CoachRow {
+  code: string;
+  name: string;
+  puzzles: unknown;
+  updated_at: string;
+  homework: unknown;
+}
+const fromRow = (r: CoachRow): CoachSet => ({
+  code: r.code,
+  name: r.name,
+  items: sanitizeCoachItems(r.puzzles),
+  updatedAt: r.updated_at,
+  homework: sanitizeHomework(r.homework),
+});
+
+/** Tous les groupes de l'entraîneur connecté, du plus ancien au plus récent (liste vide : aucun groupe). */
+export async function fetchMySets(): Promise<CoachSet[]> {
+  const { data, error } = await (await cloud()).from('coach_sets').select(COLUMNS).order('created_at', { ascending: true });
   if (error) throw error;
-  return data
-    ? { code: data.code, name: data.name, items: sanitizeCoachItems(data.puzzles), updatedAt: data.updated_at, homework: sanitizeHomework(data.homework) }
-    : null;
+  return ((data ?? []) as CoachRow[]).map(fromRow);
 }
 
-/** Remplace TOUTE la base (purge à chaque import), en la créant au besoin. Les devoirs, liés aux
- *  rangs des exercices, sont effacés avec elle. */
-export async function replaceMySet(name: string, items: CoachItem[]): Promise<CoachSet> {
+/** Remplace TOUTE la base du groupe `code` (purge à chaque import), ou crée un NOUVEAU groupe si `code` est absent
+ *  (erreur P0001 au-delà de 10 groupes). Les devoirs, liés aux rangs des exercices, sont effacés avec la base. */
+export async function replaceMySet(name: string, items: CoachItem[], code?: string): Promise<CoachSet> {
   const c = await cloud();
-  const existing = await fetchMySet();
   const updatedAt = new Date().toISOString();
-  if (existing) {
-    const { error } = await c.from('coach_sets').update({ name, puzzles: items, updated_at: updatedAt, homework: [] }).eq('code', existing.code);
+  if (code) {
+    const { error } = await c.from('coach_sets').update({ name, puzzles: items, updated_at: updatedAt, homework: [] }).eq('code', code);
     if (error) throw error;
-    return { code: existing.code, name, items, updatedAt, homework: [] };
+    return { code, name, items, updatedAt, homework: [] };
   }
   for (let attempt = 0; attempt < 3; attempt++) {
-    const code = newCoachCode();
-    const { error } = await c.from('coach_sets').insert({ code, name, puzzles: items, updated_at: updatedAt });
-    if (!error) return { code, name, items, updatedAt, homework: [] };
+    const fresh = newCoachCode();
+    const { error } = await c.from('coach_sets').insert({ code: fresh, name, puzzles: items, updated_at: updatedAt });
+    if (!error) return { code: fresh, name, items, updatedAt, homework: [] };
     if (error.code !== '23505') throw error; // code déjà pris : on en tire un autre
   }
   throw 'Création de la base impossible, réessaie.';
+}
+
+/** Change le nom d'un groupe (la version de la base, donc le suivi, ne change pas). */
+export async function renameMySet(code: string, name: string): Promise<void> {
+  const { error } = await (await cloud()).from('coach_sets').update({ name }).eq('code', code);
+  if (error) throw error;
+}
+
+/** Supprime un groupe, avec ses élèves suivis et leurs résultats. */
+export async function deleteMySet(code: string): Promise<void> {
+  const { error } = await (await cloud()).from('coach_sets').delete().eq('code', code);
+  if (error) throw error;
 }
 
 /** Elo recalibrés : mêmes exercices, mêmes rangs, même version (le suivi reste valable). */
@@ -220,9 +248,9 @@ export async function reportResult(entry: ReportEntry): Promise<void> {
   }
 }
 
-/** Entraîneur : ses élèves et leurs résultats. */
-export async function fetchProgress(): Promise<import('../core/coachProgress').MemberProgress[]> {
-  const { data, error } = await (await cloud()).rpc('coach_progress');
+/** Entraîneur : les élèves d'un de ses groupes et leurs résultats. */
+export async function fetchProgress(code: string): Promise<import('../core/coachProgress').MemberProgress[]> {
+  const { data, error } = await (await cloud()).rpc('coach_progress', { p_code: code });
   if (error) throw error;
   if (!Array.isArray(data)) return [];
   return (data as import('../core/coachProgress').MemberProgress[]).map((m) => ({
