@@ -101,6 +101,8 @@ interface Props {
   onTheme: (t: ThemeChoice) => void;
   onStartRating: (r: number | null) => void;
   onStart: () => void;
+  /** Course entre amis par lien (absent sans compte en ligne configuré). */
+  onRace?: () => void;
   onTrain: (index: number) => void;
   /** Conseil : famille de finales la plus faible du joueur (Elo). */
   weakness: { family: string; label: string; elo: number } | null;
@@ -689,6 +691,16 @@ export function HomeScreen(p: Props) {
             >
               <Icon name="play" className="h-5 w-5" /> Jouer
             </button>
+            {p.onRace && (
+              <button
+                type="button"
+                onClick={p.onRace}
+                className="rounded-xl border border-sky-500/60 px-5 py-4 text-lg font-bold text-sky-300 hover:bg-sky-500/10"
+                title="Crée une course : tes amis la rejoignent par un lien et jouent les mêmes finales"
+              >
+                <Icon name="flag" className="h-5 w-5" /> Course entre amis
+              </button>
+            )}
             <span className="text-sm text-stone-400">
               {p.loadError ?? (p.poolSize === null ? 'Chargement des finales…' : `${p.poolSize} finales disponibles`)}
               {p.best && ` · Record : ${p.best.score} (${p.best.date})`}

@@ -43,6 +43,16 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         go: { label: 'Lancer un Streak', target: { kind: 'mode', mode: 'streak' } },
       },
       {
+        icon: 'flag',
+        title: 'Course entre amis',
+        points: [
+          'Depuis l’accueil, « Course entre amis » crée un salon : envoie le lien à tes amis (jusqu’à 10 joueurs), chacun choisit un pseudo.',
+          'L’organisateur (le premier arrivé) lance le départ : après 5 secondes, tout le monde joue pendant 3 minutes les mêmes finales, dans le même ordre, avec la même couleur.',
+          'Chaque réussite vaut un point ; une erreur fait perdre 10 secondes. Le classement se met à jour en direct, et l’organisateur peut relancer une nouvelle course avec les mêmes amis.',
+          'Il faut une connexion Internet. Rien n’est enregistré : les pseudos et scores disparaissent à la fermeture du salon.',
+        ],
+      },
+      {
         icon: 'pin',
         title: 'Puzzle du jour et défi de la semaine',
         points: [
@@ -159,7 +169,7 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         points: [
           'Ouvre le lien reçu, ou choisis le thème « Entraîneur » et entre le code du groupe.',
           'Ton entraîneur peut avoir plusieurs groupes, chacun avec son code : tu es dans un seul groupe à la fois.',
-          'Pour changer de groupe, ouvre le lien du nouveau groupe, ou touche « Quitter le groupe » puis entre le nouveau code. Quitter efface ton suivi chez l’ancien entraîneur.',
+          'Pour changer de groupe, ouvre le lien du nouveau groupe (ton suivi dans l’ancien n’est effacé que si tu acceptes de partager avec le nouveau), ou touche « Quitter le groupe » (cela efface ton suivi chez ton entraîneur) puis entre le nouveau code.',
         ],
       },
     ],

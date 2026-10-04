@@ -25,7 +25,8 @@ import { judge } from './services/judge';
 import { tablebase } from './services/tablebaseClient';
 import { stockfish } from './services/stockfish';
 import { useCloudAccount } from './hooks/useCloudAccount';
-import { openedFromEmailLink } from './services/cloud';
+import { cloudEnabled, openedFromEmailLink } from './services/cloud';
+import { newRaceCode, parseRaceCode } from './core/race';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
@@ -39,7 +40,7 @@ import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' } | { name: 'race'; code: string };
 
 const embed = readEmbedOptions();
 
@@ -51,6 +52,7 @@ const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ de
 import type { CoachTab } from './screens/CoachScreen';
 const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
 const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
+const RaceScreen = lazy(() => import('./screens/RaceScreen').then((m) => ({ default: m.RaceScreen })));
 const HelpScreen = lazy(() => import('./screens/HelpScreen').then((m) => ({ default: m.HelpScreen })));
 const AnalysisScreen = lazy(() => import('./screens/AnalysisScreen').then((m) => ({ default: m.AnalysisScreen })));
 const ExamScreen = lazy(() => import('./screens/ExamScreen').then((m) => ({ default: m.ExamScreen })));
@@ -99,6 +101,9 @@ function buildPool(theme: ThemeChoice, sub: string, lichess: Puzzle[]): Puzzle[]
 /** Groupe d'entraîneur reçu par lien (#groupe=CODE), lu une fois au chargement. */
 const GROUP_LINK = typeof window === 'undefined' ? null : (/^#groupe=([A-Za-z0-9]{8})$/.exec(window.location.hash)?.[1]?.toUpperCase() ?? null);
 
+/** Course entre amis reçue par lien (#course=CODE), lue une fois au chargement. */
+const RACE_LINK = typeof window === 'undefined' || !cloudEnabled ? null : parseRaceCode(window.location.hash);
+
 /** Série d'entraîneur reçue par lien (#serie=…), lue une fois au chargement. */
 const SERIES: Series | null = typeof window === 'undefined' ? null : decodeSeries(window.location.hash, (id) => BASICS.some((b) => b.id === id));
 const SERIES_PUZZLES: Puzzle[] = (SERIES?.items ?? []).map((it, i) =>
@@ -119,6 +124,7 @@ const SERIES_PUZZLES: Puzzle[] = (SERIES?.items ?? []).map((it, i) =>
 export default function App() {
   const [screen, setScreen] = useState<Screen>(() => {
     if (SERIES) return { name: 'series' };
+    if (RACE_LINK) return { name: 'race', code: RACE_LINK };
     // Liens de la page de présentation.
     const hash = typeof window === 'undefined' ? '' : window.location.hash;
     if (hash === '#mentions-legales' || hash === '#donnees-personnelles') {
@@ -520,7 +526,31 @@ export default function App() {
     });
   }, []);
 
+  const goHome = () => {
+    if (window.location.hash.startsWith('#course=')) history.replaceState(null, '', window.location.pathname + window.location.search);
+    setScreen({ name: 'home' });
+  };
+  const onRaceAttempt = (p: Puzzle, ok: boolean, e?: ErrorType, s?: SolveInfo) => onAttempt(p, ok, 'storm', e, s);
+
   const playerName = playerStore.listPlayers().find((p) => p.id === playerId)?.name ?? null;
+
+  if (screen.name === 'race') {
+    return shell(
+      <RaceScreen
+        key={screen.code}
+        code={screen.code}
+        pool={lichess}
+        judge={judge}
+        defaultName={playerName ?? ''}
+        onAttempt={onRaceAttempt}
+        onAgain={(code) => {
+          history.replaceState(null, '', `${window.location.pathname}${window.location.search}#course=${code}`);
+          setScreen({ name: 'race', code });
+        }}
+        onHome={goHome}
+      />,
+    );
+  }
 
   if (screen.name === 'privacy') {
     return shell(<PrivacyScreen onHome={() => setScreen({ name: 'home' })} />);
@@ -980,6 +1010,11 @@ export default function App() {
       onSub={setSub}
       onStartRating={setStartRating}
       onStart={() => setScreen({ name: 'rush', run: Date.now() })}
+      onRace={cloudEnabled ? () => {
+        const code = newRaceCode();
+        history.replaceState(null, '', `${window.location.pathname}${window.location.search}#course=${code}`);
+        setScreen({ name: 'race', code });
+      } : undefined}
       onTrain={(index) => setScreen({ name: 'training', index })}
       onLeaderboard={account.enabled ? () => setScreen({ name: 'leaderboard' }) : undefined}
     />
