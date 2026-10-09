@@ -14,9 +14,10 @@ import {
   RACE_DURATION_MS,
   RACE_MAX_PLAYERS,
   RACE_PENALTY_MS,
+  RACE_SKIPS,
   cleanRaceName,
   comboBonus,
-  newRaceCode,
+  nextRaceCode,
   rankPlayers,
   raceColor,
   raceHost,
@@ -36,8 +37,10 @@ interface Props {
   /** Pseudo proposé (nom du joueur de l'appareil). */
   defaultName: string;
   onAttempt?: (puzzle: Puzzle, success: boolean, error?: ErrorType, info?: SolveInfo) => void;
-  /** Nouvelle course avec les mêmes amis (nouveau code). */
+  /** Revanche : course suivante de la chaîne (même code pour tous). */
   onAgain: (code: string) => void;
+  /** Arrivée par « Revanche » : on entre directement dans le salon avec le pseudo déjà choisi. */
+  autoJoin?: boolean;
   onHome: () => void;
 }
 
@@ -65,7 +68,7 @@ const randomId = () => Math.random().toString(36).slice(2, 12);
 
 type Phase = 'name' | 'lobby' | 'countdown' | 'playing' | 'over';
 
-export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain, onHome }: Props) {
+export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain, autoJoin = false, onHome }: Props) {
   const [name, setName] = useState(() => cleanRaceName(readName(defaultName)));
   const [phase, setPhase] = useState<Phase>('name');
   const [status, setStatus] = useState<RaceStatus>('connecting');
@@ -93,6 +96,8 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   /** Message éclair près du chrono : « +2 » (bonus de combo) ou « −5 s » (erreur). */
   const [pop, setPop] = useState<{ text: string; good: boolean; id: number } | null>(null);
   const comboRef = useRef(0);
+  const [skipsLeft, setSkipsLeft] = useState(RACE_SKIPS);
+  const [skipRequest, setSkipRequest] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
   const scoreRef = useRef(0);
   const errorsRef = useRef(0);
@@ -121,7 +126,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
             if (!checked.current && list.some((p) => p.id === me.current.id)) {
               checked.current = true;
               const others = list.filter((p) => p.id !== me.current.id);
-              if (others.some((p) => p.started)) setRefused('Cette course est déjà lancée. Demande à ton ami d’en créer une nouvelle.');
+              if (others.some((p) => p.started)) setRefused('Cette course est déjà lancée. Tu peux rejoindre la suivante : tes amis y arriveront en cliquant « Revanche ».');
               else if (others.length >= RACE_MAX_PLAYERS) setRefused(`Ce salon est complet (${RACE_MAX_PLAYERS} joueurs).`);
               else if (others.some((p) => p.name.toLowerCase() === clean.toLowerCase())) setRefused('Ce pseudo est déjà pris dans ce salon : choisis-en un autre.');
             }
@@ -130,9 +135,8 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
             // Seul l'organisateur (le plus ancien du salon) peut lancer la course.
             if (by === raceHost(playersRef.current) && phaseRef.current === 'lobby') begin();
           },
-          onAgain: (next, by) => {
-            if (by === raceHost(playersRef.current) && /^[A-Z2-9]{6}$/.test(next)) onAgain(next);
-          },
+          // Revanche à la Lichess : chacun clique quand il veut, plus de départ forcé par l'organisateur.
+          onAgain: () => undefined,
         });
       } catch (e) {
         setStatus('error');
@@ -144,6 +148,16 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   );
 
   useEffect(() => () => link.current?.close(), []);
+
+  // Revanche : pas de nouvelle saisie du pseudo.
+  const autoJoined = useRef(false);
+  useEffect(() => {
+    if (autoJoin && pool && !autoJoined.current && cleanRaceName(name)) {
+      autoJoined.current = true;
+      void join(name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule fois, dès que les finales sont chargées
+  }, [autoJoin, pool]);
 
   // Pseudo refusé : on quitte proprement le salon.
   useEffect(() => {
@@ -306,6 +320,11 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
       <div className="flex flex-col gap-4 rounded-xl bg-stone-800 p-5">
         <p className="text-amber-300"><Icon name="warning" className="h-5 w-5" /> {refused}</p>
         <div className="flex gap-3">
+          {refused.startsWith('Cette course') && (
+            <button type="button" className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900" onClick={() => onAgain(nextRaceCode(code))}>
+              Rejoindre la course suivante
+            </button>
+          )}
           {refused.startsWith('Ce pseudo') && (
             <button type="button" className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900" onClick={() => { checked.current = false; setRefused(null); setPhase('name'); }}>
               Changer de pseudo
@@ -327,7 +346,8 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
         <p className="text-stone-300">
           Tout le monde joue les <strong>mêmes finales</strong>, dans le même ordre et avec la même couleur, pendant <strong>1 min 30</strong>.
           Chaque bon coup vaut un point ; enchaîner les bons coups remplit la barre de combo et rapporte des bonus (+1 à 5 d’affilée, +2 à 12, +3 à 20, +4 à 30).
-          Une erreur vide la barre et coûte {RACE_PENALTY_MS / 1000} secondes. Tu vois les autres avancer en direct sur la piste.
+          Une erreur vide la barre et coûte {RACE_PENALTY_MS / 1000} secondes. Joker : tu peux passer {RACE_SKIPS === 1 ? 'un coup' : `${RACE_SKIPS} coups`} par course (sans point, combo conservé).
+          Tu vois les autres avancer en direct sur la piste.
         </p>
         <form
           className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4"
@@ -447,7 +467,21 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
               <div className="text-[11px] uppercase tracking-wide text-stone-400">Erreurs</div>
             </div>
           </div>
-          <ComboBar combo={combo} />
+          <div className="flex items-stretch gap-2">
+            <div className="flex-1"><ComboBar combo={combo} /></div>
+            {!over && (
+              <button
+                type="button"
+                disabled={skipsLeft <= 0}
+                onClick={() => setSkipRequest((n) => n + 1)}
+                title="L’appli joue le bon coup à ta place : pas de point, mais ton combo est conservé. Une fois par course."
+                className="rounded-xl bg-sky-600 px-3 text-sm font-bold text-white hover:bg-sky-500 disabled:bg-stone-800 disabled:text-stone-500"
+                data-testid="race-skip"
+              >
+                Passer<br /><span className="text-xs font-normal">{skipsLeft > 0 ? `${skipsLeft} joker` : 'utilisé'}</span>
+              </button>
+            )}
+          </div>
           {over ? (
             <div className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4" data-testid="race-result">
               <h2 className="text-xl font-bold text-stone-50"><Icon name="trophy" className="h-5 w-5 text-amber-300" /> Course terminée !</h2>
@@ -458,22 +492,16 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
               {board}
               <p className="text-sm text-stone-400">Les autres joueurs terminent à quelques secondes près : le classement se complète tout seul.</p>
               <div className="flex gap-3">
-                {isHost && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = newRaceCode();
-                      link.current?.again(next);
-                      onAgain(next);
-                    }}
-                    className="flex-1 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400"
-                  >
-                    ↻ Course suivante
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => onAgain(nextRaceCode(code))}
+                  className="flex-1 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400"
+                >
+                  ↻ Revanche
+                </button>
                 <button type="button" onClick={onHome} className="flex-1 rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">Accueil</button>
               </div>
-              {!isHost && <p className="text-xs text-stone-400">L’organisateur peut lancer la course suivante : tu y seras emmené automatiquement.</p>}
+              <p className="text-xs text-stone-400">« Revanche » emmène tout le monde dans la même course suivante, sans nouveau lien. Le premier arrivé donne le départ.</p>
             </div>
           ) : (
             <button type="button" onClick={onHome} className="hidden self-start text-sm text-stone-400 hover:text-stone-100 lg:block">Abandonner</button>
@@ -481,7 +509,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
         </aside>
         <div className="mx-auto w-full lg:order-1" style={{ maxWidth: 'min(100%, calc(100dvh - 260px), 720px)' }}>
           {current && (
-            <PuzzleRunner key={`${current.id}-${index}`} puzzle={current} active={!over} judge={judge} onEnd={onEnd} onGoodMove={onGoodMove} />
+            <PuzzleRunner key={`${current.id}-${index}`} puzzle={current} active={!over} judge={judge} onEnd={onEnd} onGoodMove={onGoodMove} skipRequest={skipRequest} onSkipUsed={() => setSkipsLeft((n) => Math.max(0, n - 1))} />
           )}
         </div>
       </div>

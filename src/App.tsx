@@ -41,7 +41,7 @@ import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' } | { name: 'race'; code: string };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' } | { name: 'race'; code: string; rematch?: boolean };
 
 const embed = readEmbedOptions();
 
@@ -569,9 +569,10 @@ export default function App() {
         judge={judge}
         defaultName={playerName ?? ''}
         onAttempt={onRaceAttempt}
+        autoJoin={screen.rematch}
         onAgain={(code) => {
           history.replaceState(null, '', `${window.location.pathname}${window.location.search}#course=${code}`);
-          setScreen({ name: 'race', code });
+          setScreen({ name: 'race', code, rematch: true });
         }}
         onHome={goHome}
       />,

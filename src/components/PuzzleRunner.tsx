@@ -7,7 +7,7 @@ import { useSolveClock } from '../hooks/useSolveClock';
 import { SolveClock } from './hud/SolveClock';
 import { rushRules } from '../core/config';
 import { parseUci } from '../core/fen';
-import type { Puzzle } from '../core/types';
+import type { PromotionPiece, Puzzle } from '../core/types';
 import { usePuzzlePlayer } from '../hooks/usePuzzlePlayer';
 import type { MoveJudge } from '../services/moveJudge';
 import { useBoardFlash } from './board/useBoardFlash';
@@ -25,6 +25,10 @@ interface Props {
   onPlayerMove?: () => void;
   /** Coup du joueur jugé bon (course : 1 point par bon coup, comme Lichess Racer). */
   onGoodMove?: () => void;
+  /** Joker « passer » : chaque incrément demande à l'appli de jouer le bon coup à la place du joueur. */
+  skipRequest?: number;
+  /** Le joker a bien été utilisé (coup joué pour le joueur, ou position abandonnée faute de réponse). */
+  onSkipUsed?: () => void;
   /** Message affiché à la place de l'état (ex. « le chrono démarre au premier coup »). */
   banner?: string | null;
 }
@@ -37,7 +41,7 @@ const TONE: Record<Tone, string> = {
   success: 'text-emerald-300',
 };
 
-export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, onGoodMove, banner }: Props) {
+export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, onGoodMove, skipRequest = 0, onSkipUsed, banner }: Props) {
   const rules = useMemo(() => rushRules(puzzle.solution), [puzzle]);
   const { state, playMove } = usePuzzlePlayer(puzzle, rules, judge, onPlayerMove);
   const flash = useBoardFlash(state.phase, state.verdict?.kind);
@@ -58,13 +62,49 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, onGoo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- issue lue au moment où la phase change
   }, [state.phase, onEnd]);
 
+  // Joker : l'appli joue le meilleur coup (table ou Stockfish) ; ce coup ne rapporte pas de point.
+  const skipping = useRef(false);
+  const handledSkip = useRef(skipRequest);
+  useEffect(() => {
+    if (skipRequest === handledSkip.current) return;
+    handledSkip.current = skipRequest;
+    if (!active || state.phase !== 'awaitingPlayer' || skipping.current) return;
+    skipping.current = true;
+    const fen = state.fen;
+    void Promise.race([judge.hint(fen), new Promise<null>((r) => setTimeout(() => r(null), 6_000))])
+      .catch(() => null)
+      .then((uci) => {
+        if (stateRef.current.fen !== fen || stateRef.current.phase !== 'awaitingPlayer') {
+          skipping.current = false;
+          return;
+        }
+        const m = uci ? parseUci(uci) : null;
+        if (m && playMove(m.from, m.to, m.promotion as PromotionPiece | undefined)) {
+          onSkipUsed?.();
+          return;
+        }
+        // Pas de coup disponible : on passe la position entière.
+        skipping.current = false;
+        if (!reported.current) {
+          reported.current = true;
+          onSkipUsed?.();
+          onEnd('skipped');
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- déclenché par la seule demande
+  }, [skipRequest]);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Chaque verdict est un nouvel objet : on compte chaque bon coup une seule fois.
   const countedVerdict = useRef<unknown>(null);
   useEffect(() => {
     const v = state.verdict;
     if (!v || v === countedVerdict.current) return;
     countedVerdict.current = v;
-    if (v.kind === 'good' && state.phase !== 'failed') onGoodMove?.();
+    const skipped = skipping.current;
+    skipping.current = false;
+    if (v.kind === 'good' && state.phase !== 'failed' && !skipped) onGoodMove?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- déclenché par le seul verdict
   }, [state.verdict]);
 

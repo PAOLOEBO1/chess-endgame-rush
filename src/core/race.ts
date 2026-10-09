@@ -57,6 +57,20 @@ export function parseRaceCode(text: string): string | null {
   return [...code].every((c) => ALPHABET.includes(c)) ? code : null;
 }
 
+/**
+ * Revanche (comme Lichess Racer) : le code de la course suivante se déduit du code actuel.
+ * Tous ceux qui cliquent « Revanche » arrivent donc dans le même salon, sans nouveau lien ;
+ * un joueur arrivé trop tard rejoint la suivante de la chaîne.
+ */
+export function nextRaceCode(code: string): string {
+  let out = '';
+  for (let i = 0; i < 6; i++) out += ALPHABET[hash(`${code}#revanche#${i}`) % ALPHABET.length];
+  return out;
+}
+
+/** Joker : un coup peut être passé par course (joué par l'appli, sans point, combo conservé). */
+export const RACE_SKIPS = 1;
+
 export const raceLink = (origin: string, code: string) => `${origin}/#course=${code}`;
 
 /** Pseudo propre : espaces réduits, longueur bornée, sans caractère de contrôle. */
@@ -83,7 +97,8 @@ export function raceSequence<T extends { id: string; rating: number; fen: string
   const used = new Set<string>();
   const out: T[] = [];
   for (let k = 0; k < length; k++) {
-    const target = Math.min(2200, 800 + k * 25);
+    // Comme Lichess Racer (une position Storm sur deux) : la difficulté monte deux fois plus vite qu'en Storm.
+    const target = Math.min(2200, 800 + k * 50);
     let band = sorted.filter((p) => !used.has(p.id) && Math.abs(p.rating - target) <= 60);
     if (!band.length) {
       // tranche épuisée : la position non jouée la plus proche

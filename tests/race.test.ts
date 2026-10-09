@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanRaceName, comboBonus, comboProgress, newRaceCode, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
+import { cleanRaceName, comboBonus, comboProgress, newRaceCode, nextRaceCode, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
 import { sideToMove } from '../src/core/fen';
 
 const FEN_W = '8/8/8/8/8/4k3/8/4K2R w - - 0 1';
@@ -62,4 +62,12 @@ test('combo façon Lichess Racer : +1 à 5, +2 à 12, +3 à 20, +4 à 30 puis to
   assert.deepEqual(comboProgress(5), { reached: 1, fill: 0 });
   assert.deepEqual(comboProgress(16), { reached: 2, fill: 0.5 });
   assert.deepEqual(comboProgress(35), { reached: 4, fill: 0.5 });
+});
+
+test('revanche : même course suivante pour tous, code valide et différent', () => {
+  const next = nextRaceCode('K7M2QX');
+  assert.equal(next, nextRaceCode('K7M2QX'));
+  assert.notEqual(next, 'K7M2QX');
+  assert.equal(parseRaceCode(next), next);
+  assert.notEqual(nextRaceCode(next), next);
 });
