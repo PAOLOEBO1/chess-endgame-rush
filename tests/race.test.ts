@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanRaceName, comboBonus, comboProgress, newRaceCode, nextRaceCode, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
+import { cleanRaceName, comboBonus, comboProgress, newRaceCode, nextRaceCode, publicRace, randomRaceName, PUBLIC_MIN_WAIT_MS, PUBLIC_SLOT_MS, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
 import { sideToMove } from '../src/core/fen';
 
 const FEN_W = '8/8/8/8/8/4k3/8/4K2R w - - 0 1';
@@ -70,4 +70,25 @@ test('revanche : même course suivante pour tous, code valide et différent', ()
   assert.notEqual(next, 'K7M2QX');
   assert.equal(parseRaceCode(next), next);
   assert.notEqual(nextRaceCode(next), next);
+});
+
+test('course publique : même salon pour tout le créneau, au moins 12 s d’attente', () => {
+  const t = 1_800_000_000_000; // multiple de 30 s
+  const a = publicRace(t + 1_000);
+  assert.equal(a.startsAt, t + PUBLIC_SLOT_MS);
+  assert.deepEqual(publicRace(t + 17_000), a); // même créneau
+  const late = publicRace(t + 25_000); // moins de 12 s avant le départ : créneau suivant
+  assert.equal(late.startsAt, t + 2 * PUBLIC_SLOT_MS);
+  assert.notEqual(late.code, a.code);
+  assert.ok(late.startsAt - (t + 25_000) >= PUBLIC_MIN_WAIT_MS);
+  assert.equal(parseRaceCode(a.code), a.code);
+  assert.equal(publicRace(a.startsAt).startsAt, a.startsAt + PUBLIC_SLOT_MS); // salon complet : le suivant
+});
+
+test('pseudo aléatoire : propre et court', () => {
+  for (let i = 0; i < 50; i++) {
+    const n = randomRaceName();
+    assert.equal(cleanRaceName(n), n);
+    assert.match(n, /^\p{L}+\d{2}$/u);
+  }
 });

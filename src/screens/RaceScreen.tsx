@@ -1,6 +1,7 @@
 // Course entre amis : salon (lien à partager), compte à rebours, 1 min 30 sur les MÊMES
 // finales pour tous, piste et classement en direct (inspiré de Lichess Puzzle Racer).
-// Points : 1 par bon coup + bonus de combo ; une erreur vide le combo et coûte du temps.
+// Points : 1 par bon coup + bonus de combo ; une erreur vide le combo (pas de perte de temps).
+// Deux modes : entre amis (lien, départ par l'organisateur) ou publique (départ toutes les 30 s).
 // Rien n'est enregistré côté serveur.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -13,12 +14,12 @@ import {
   RACE_COUNTDOWN_MS,
   RACE_DURATION_MS,
   RACE_MAX_PLAYERS,
-  RACE_PENALTY_MS,
   RACE_SKIPS,
   cleanRaceName,
   comboBonus,
   nextRaceCode,
   rankPlayers,
+  randomRaceName,
   raceColor,
   raceHost,
   raceLink,
@@ -41,6 +42,10 @@ interface Props {
   onAgain: (code: string) => void;
   /** Arrivée par « Revanche » : on entre directement dans le salon avec le pseudo déjà choisi. */
   autoJoin?: boolean;
+  /** Course publique : heure de départ fixée par le créneau (pas d'organisateur, pas de lien). */
+  publicStartsAt?: number;
+  /** Course publique suivante (salon complet, ou « Course suivante » en fin de course). */
+  onNextPublic?: (after: number) => void;
   onHome: () => void;
 }
 
@@ -68,8 +73,10 @@ const randomId = () => Math.random().toString(36).slice(2, 12);
 
 type Phase = 'name' | 'lobby' | 'countdown' | 'playing' | 'over';
 
-export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain, autoJoin = false, onHome }: Props) {
-  const [name, setName] = useState(() => cleanRaceName(readName(defaultName)));
+export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain, autoJoin = false, publicStartsAt, onNextPublic, onHome }: Props) {
+  const isPublic = publicStartsAt !== undefined;
+  // Course publique : pseudo aléatoire uniquement (rien de personnel montré à des inconnus).
+  const [name, setName] = useState(() => (isPublic ? randomRaceName() : cleanRaceName(readName(defaultName))));
   const [phase, setPhase] = useState<Phase>('name');
   const [status, setStatus] = useState<RaceStatus>('connecting');
   const [players, setPlayers] = useState<RacePlayer[]>([]);
@@ -90,7 +97,6 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   const [current, setCurrent] = useState<Puzzle | null>(null);
   const [score, setScore] = useState(0);
   const [errors, setErrors] = useState(0);
-  const [penalty, setPenalty] = useState(0);
   const [combo, setCombo] = useState(0);
   const [solved, setSolved] = useState(0);
   /** Message éclair près du chrono : « +2 » (bonus de combo) ou « −5 s » (erreur). */
@@ -105,14 +111,14 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
 
   const host = raceHost(players);
   const isHost = host === me.current.id;
-  const endsAt = startAt + RACE_DURATION_MS - penalty;
+  const endsAt = startAt + RACE_DURATION_MS;
 
   // Connexion au salon, une fois le pseudo validé.
   const join = useCallback(
     async (chosen: string) => {
       const clean = cleanRaceName(chosen);
       if (!clean) return;
-      saveName(clean);
+      if (!isPublic) saveName(clean);
       setName(clean);
       setStatus('connecting');
       me.current.joinedAt = Date.now();
@@ -126,14 +132,14 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
             if (!checked.current && list.some((p) => p.id === me.current.id)) {
               checked.current = true;
               const others = list.filter((p) => p.id !== me.current.id);
-              if (others.some((p) => p.started)) setRefused('Cette course est déjà lancée. Tu peux rejoindre la suivante : tes amis y arriveront en cliquant « Revanche ».');
+              if (!isPublic && others.some((p) => p.started)) setRefused('Cette course est déjà lancée. Tu peux rejoindre la suivante : tes amis y arriveront en cliquant « Revanche ».');
               else if (others.length >= RACE_MAX_PLAYERS) setRefused(`Ce salon est complet (${RACE_MAX_PLAYERS} joueurs).`);
               else if (others.some((p) => p.name.toLowerCase() === clean.toLowerCase())) setRefused('Ce pseudo est déjà pris dans ce salon : choisis-en un autre.');
             }
           },
           onStart: (by) => {
             // Seul l'organisateur (le plus ancien du salon) peut lancer la course.
-            if (by === raceHost(playersRef.current) && phaseRef.current === 'lobby') begin();
+            if (!isPublic && by === raceHost(playersRef.current) && phaseRef.current === 'lobby') begin();
           },
           // Revanche à la Lichess : chacun clique quand il veut, plus de départ forcé par l'organisateur.
           onAgain: () => undefined,
@@ -167,8 +173,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
     }
   }, [refused]);
 
-  function begin() {
-    const at = Date.now() + RACE_COUNTDOWN_MS;
+  function begin(at = Date.now() + RACE_COUNTDOWN_MS) {
     setStartAt(at);
     setNow(Date.now());
     link.current?.update({ started: true });
@@ -182,7 +187,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
 
   // Horloge : compte à rebours, puis départ, puis fin du temps.
   useEffect(() => {
-    if (phase !== 'countdown' && phase !== 'playing') return;
+    if (phase !== 'countdown' && phase !== 'playing' && !(isPublic && phase === 'lobby')) return;
     const id = window.setInterval(() => setNow(Date.now()), 200);
     return () => window.clearInterval(id);
   }, [phase]);
@@ -228,6 +233,12 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
     };
   }, [phase, current, sequence, prepare]);
 
+  // Course publique : compte à rebours automatique avant l'heure de départ du créneau.
+  useEffect(() => {
+    if (isPublic && phase === 'lobby' && status === 'ready' && now >= publicStartsAt - RACE_COUNTDOWN_MS) begin(publicStartsAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- begin lu au moment du départ
+  }, [isPublic, phase, status, now, publicStartsAt]);
+
   useEffect(() => {
     if (phase === 'countdown' && now >= startAt && current) setPhase('playing');
   }, [phase, now, startAt, current]);
@@ -266,13 +277,12 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
         if (end === 'solved') {
           setSolved((n) => n + 1);
         } else {
-          // Erreur : combo vidé (comme Lichess Racer) et temps retiré.
+          // Erreur : combo vidé, comme Lichess Racer (pas de perte de temps).
           errorsRef.current += 1;
+          if (comboRef.current > 0) flashPop('combo perdu', false);
           comboRef.current = 0;
           setCombo(0);
           setErrors(errorsRef.current);
-          setPenalty((p) => p + RACE_PENALTY_MS);
-          flashPop(`−${RACE_PENALTY_MS / 1000} s`, false);
         }
         link.current?.update({ score: scoreRef.current, errors: errorsRef.current });
       }
@@ -320,7 +330,12 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
       <div className="flex flex-col gap-4 rounded-xl bg-stone-800 p-5">
         <p className="text-amber-300"><Icon name="warning" className="h-5 w-5" /> {refused}</p>
         <div className="flex gap-3">
-          {refused.startsWith('Cette course') && (
+          {isPublic && refused.startsWith('Ce salon') && (
+            <button type="button" className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900" onClick={() => onNextPublic?.(publicStartsAt)}>
+              Course publique suivante
+            </button>
+          )}
+          {!isPublic && refused.startsWith('Cette course') && (
             <button type="button" className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900" onClick={() => onAgain(nextRaceCode(code))}>
               Rejoindre la course suivante
             </button>
@@ -340,13 +355,13 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
     return shell(
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="flag" className="h-6 w-6 text-amber-300" /> Course entre amis</h1>
+          <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="flag" className="h-6 w-6 text-amber-300" /> {isPublic ? 'Course publique' : 'Course entre amis'}</h1>
           {back}
         </div>
         <p className="text-stone-300">
           Tout le monde joue les <strong>mêmes finales</strong>, dans le même ordre et avec la même couleur, pendant <strong>1 min 30</strong>.
           Chaque bon coup vaut un point ; enchaîner les bons coups remplit la barre de combo et rapporte des bonus (+1 à 5 d’affilée, +2 à 12, +3 à 20, +4 à 30).
-          Une erreur vide la barre et coûte {RACE_PENALTY_MS / 1000} secondes. Joker : tu peux passer {RACE_SKIPS === 1 ? 'un coup' : `${RACE_SKIPS} coups`} par course (sans point, combo conservé).
+          Une erreur vide la barre. Joker : tu peux passer {RACE_SKIPS === 1 ? 'un coup' : `${RACE_SKIPS} coups`} par course (sans point, combo conservé).
           Tu vois les autres avancer en direct sur la piste.
         </p>
         <form
@@ -357,19 +372,29 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
           }}
         >
           <label htmlFor="race-name" className="text-sm font-semibold text-stone-200">Ton pseudo dans la course</label>
-          <input
-            id="race-name"
-            value={name}
-            maxLength={20}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50"
-            placeholder="Ex. Camille"
-          />
+          <div className="flex gap-2">
+            <input
+              id="race-name"
+              value={name}
+              maxLength={20}
+              readOnly={isPublic}
+              onChange={(e) => setName(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50"
+              placeholder="Ex. Camille"
+            />
+            {isPublic && (
+              <button type="button" onClick={() => setName(randomRaceName())} className="rounded-lg bg-stone-700 px-3 font-semibold text-stone-100 hover:bg-stone-600" title="Tirer un autre pseudo">
+                🎲 Autre
+              </button>
+            )}
+          </div>
           <button type="submit" disabled={!cleanRaceName(name) || !pool} className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400 disabled:opacity-40">
             {pool ? 'Entrer dans le salon' : 'Chargement des finales…'}
           </button>
           <p className="text-xs text-stone-400">
-            Ton pseudo n’est visible que des joueurs du salon et n’est enregistré nulle part. Les finales jouées comptent dans ta progression.
+            {isPublic
+              ? 'Course ouverte à tous : tu affrontes des joueurs inconnus. Ton pseudo est tiré au hasard pour que rien de personnel ne soit montré. Les finales jouées comptent dans ta progression.'
+              : 'Ton pseudo n’est visible que des joueurs du salon et n’est enregistré nulle part. Les finales jouées comptent dans ta progression.'}
           </p>
         </form>
       </div>,
@@ -383,7 +408,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
           <span className="w-6 text-center font-black text-amber-300 tabular-nums">{p.rank}</span>
           <span className="flex-1 truncate font-semibold text-stone-100">
             {p.name}
-            {p.id === host && <span className="ml-2 text-xs font-normal text-sky-300">organisateur</span>}
+            {!isPublic && p.id === host && <span className="ml-2 text-xs font-normal text-sky-300">organisateur</span>}
           </span>
           <span className="text-xs text-stone-400">{p.errors > 0 ? `${p.errors} err.` : ''}{p.done ? ' · fini' : ''}</span>
           <span className="w-8 text-right text-xl font-black text-stone-50 tabular-nums">{p.id === me.current.id ? score : p.score}</span>
@@ -396,7 +421,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
     return shell(
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="flag" className="h-6 w-6 text-amber-300" /> Salon {code}</h1>
+          <h1 className="text-2xl font-extrabold text-stone-50"><Icon name="flag" className="h-6 w-6 text-amber-300" /> {isPublic ? 'Course publique' : `Salon ${code}`}</h1>
           {back}
         </div>
         {status === 'error' && (
@@ -404,6 +429,13 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
             {problem ?? 'Connexion au salon impossible. Vérifie ta connexion Internet, puis reviens à l’accueil et réessaie.'}
           </p>
         )}
+        {isPublic ? (
+          <div className="rounded-xl bg-stone-800 p-4 text-center">
+            <p className="text-stone-300">Départ dans</p>
+            <div className="text-6xl font-black text-amber-400 tabular-nums" data-testid="race-public-wait">{Math.max(0, Math.ceil((publicStartsAt - RACE_COUNTDOWN_MS - now) / 1000))}</div>
+            <p className="text-sm text-stone-400">Un départ toutes les 30 secondes : les joueurs arrivés d’ici là courent avec toi.</p>
+          </div>
+        ) : (
         <div className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4">
           <p className="text-sm text-stone-300">Envoie ce lien à tes amis : ils arrivent dans ce salon.</p>
           <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Lien de la course" className="rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-sm text-stone-100" />
@@ -412,18 +444,19 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
           </button>
           {copied && <p className="text-sm text-emerald-300" role="status">{copied}</p>}
         </div>
+        )}
         <section>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-400">Dans le salon ({players.length}/{RACE_MAX_PLAYERS})</h2>
           {status === 'connecting' ? <p className="text-stone-400">Connexion…</p> : board}
         </section>
-        {isHost ? (
+        {isPublic ? null : isHost ? (
           <button type="button" disabled={status !== 'ready' || !pool} onClick={launch} className="rounded-xl bg-amber-500 px-6 py-3 text-lg font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40">
             <Icon name="play" className="h-5 w-5" /> Lancer la course
           </button>
         ) : (
           <p className="text-stone-300" role="status">En attente du départ, donné par l’organisateur…</p>
         )}
-        <p className="text-xs text-stone-400">Couleur de la course : {raceColor(code) === 'w' ? 'les Blancs' : 'les Noirs'} pour tout le monde. L’organisateur est le premier arrivé dans le salon.</p>
+        <p className="text-xs text-stone-400">Couleur de la course : {raceColor(code) === 'w' ? 'les Blancs' : 'les Noirs'} pour tout le monde.{isPublic ? '' : ' L’organisateur est le premier arrivé dans le salon.'}</p>
       </div>,
     );
   }
@@ -494,14 +527,14 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => onAgain(nextRaceCode(code))}
+                  onClick={() => (isPublic ? onNextPublic?.(Date.now()) : onAgain(nextRaceCode(code)))}
                   className="flex-1 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400"
                 >
-                  ↻ Revanche
+                  {isPublic ? '↻ Course suivante' : '↻ Revanche'}
                 </button>
                 <button type="button" onClick={onHome} className="flex-1 rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">Accueil</button>
               </div>
-              <p className="text-xs text-stone-400">« Revanche » emmène tout le monde dans la même course suivante, sans nouveau lien. Le premier arrivé donne le départ.</p>
+              <p className={`text-xs text-stone-400 ${isPublic ? 'hidden' : ''}`}>« Revanche » emmène tout le monde dans la même course suivante, sans nouveau lien. Le premier arrivé donne le départ.</p>
             </div>
           ) : (
             <button type="button" onClick={onHome} className="hidden self-start text-sm text-stone-400 hover:text-stone-100 lg:block">Abandonner</button>

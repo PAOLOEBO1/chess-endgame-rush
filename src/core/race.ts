@@ -7,8 +7,6 @@ import type { Color } from './types';
 
 /** Durée de la course : 1 min 30, comme Lichess Puzzle Racer. */
 export const RACE_DURATION_MS = 90_000;
-/** Temps retiré à celui qui se trompe (Lichess Racer n'en retire pas ; Storm retire 10 s sur 3 min). */
-export const RACE_PENALTY_MS = 5_000;
 export const RACE_COUNTDOWN_MS = 5_000;
 export const RACE_MAX_PLAYERS = 10;
 export const RACE_NAME_MAX = 20;
@@ -66,6 +64,35 @@ export function nextRaceCode(code: string): string {
   let out = '';
   for (let i = 0; i < 6; i++) out += ALPHABET[hash(`${code}#revanche#${i}`) % ALPHABET.length];
   return out;
+}
+
+/**
+ * Course publique (comme « Public race » de Lichess) : un départ toutes les 30 s. Le code et
+ * l'heure de départ se déduisent de l'heure : tous ceux qui cliquent dans le même créneau
+ * arrivent dans le même salon, sans serveur ni organisateur. Au moins 12 s d'attente pour
+ * laisser les autres arriver.
+ */
+export const PUBLIC_SLOT_MS = 30_000;
+export const PUBLIC_MIN_WAIT_MS = 12_000;
+
+export function publicRace(now: number): { code: string; startsAt: number } {
+  let slot = Math.floor(now / PUBLIC_SLOT_MS) + 1;
+  if (slot * PUBLIC_SLOT_MS - now < PUBLIC_MIN_WAIT_MS) slot += 1;
+  let code = '';
+  for (let i = 0; i < 6; i++) code += ALPHABET[hash(`public#${slot}#${i}`) % ALPHABET.length];
+  return { code, startsAt: slot * PUBLIC_SLOT_MS };
+}
+
+const NAME_ANIMALS = ['Lynx', 'Faucon', 'Loup', 'Renard', 'Hibou', 'Ours', 'Lièvre', 'Castor', 'Dauphin', 'Héron', 'Blaireau', 'Chamois', 'Puma', 'Orque'];
+const NAME_TRAITS = ['Agile', 'Rusé', 'Calme', 'Rapide', 'Malin', 'Vif', 'Hardi', 'Sage', 'Discret', 'Tenace', 'Futé', 'Zen'];
+
+/**
+ * Pseudo aléatoire pour les courses publiques (comme les anonymes de Lichess) : pas de texte
+ * libre montré à des inconnus, donc ni vrai nom ni pseudo déplacé.
+ */
+export function randomRaceName(random: () => number = Math.random): string {
+  const pick = <T,>(list: T[]) => list[Math.floor(random() * list.length)];
+  return `${pick(NAME_ANIMALS)}${pick(NAME_TRAITS)}${10 + Math.floor(random() * 90)}`;
 }
 
 /** Joker : un coup peut être passé par course (joué par l'appli, sans point, combo conservé). */

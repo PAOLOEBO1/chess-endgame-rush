@@ -26,7 +26,7 @@ import { tablebase } from './services/tablebaseClient';
 import { stockfish } from './services/stockfish';
 import { useCloudAccount } from './hooks/useCloudAccount';
 import { cloudEnabled, openedFromEmailLink } from './services/cloud';
-import { newRaceCode, parseRaceCode } from './core/race';
+import { newRaceCode, parseRaceCode, publicRace } from './core/race';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
@@ -41,7 +41,7 @@ import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' } | { name: 'race'; code: string; rematch?: boolean };
+type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' } | { name: 'race'; code: string; rematch?: boolean; startsAt?: number };
 
 const embed = readEmbedOptions();
 
@@ -570,6 +570,11 @@ export default function App() {
         defaultName={playerName ?? ''}
         onAttempt={onRaceAttempt}
         autoJoin={screen.rematch}
+        publicStartsAt={screen.startsAt}
+        onNextPublic={(after) => {
+          const next = publicRace(after);
+          setScreen({ name: 'race', code: next.code, startsAt: next.startsAt, rematch: true });
+        }}
         onAgain={(code) => {
           history.replaceState(null, '', `${window.location.pathname}${window.location.search}#course=${code}`);
           setScreen({ name: 'race', code, rematch: true });
@@ -1045,6 +1050,10 @@ export default function App() {
         const code = newRaceCode();
         history.replaceState(null, '', `${window.location.pathname}${window.location.search}#course=${code}`);
         setScreen({ name: 'race', code });
+      } : undefined}
+      onPublicRace={cloudEnabled ? () => {
+        const next = publicRace(Date.now());
+        setScreen({ name: 'race', code: next.code, startsAt: next.startsAt });
       } : undefined}
       onTrain={(index) => setScreen({ name: 'training', index })}
       onLeaderboard={account.enabled ? () => setScreen({ name: 'leaderboard' }) : undefined}

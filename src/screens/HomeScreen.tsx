@@ -104,6 +104,8 @@ interface Props {
   onStart: () => void;
   /** Course entre amis par lien (absent sans compte en ligne configuré). */
   onRace?: () => void;
+  /** Course publique : joueurs inconnus, départ toutes les 30 s. */
+  onPublicRace?: () => void;
   onTrain: (index: number) => void;
   /** Conseil : famille de finales la plus faible du joueur (Elo). */
   weakness: { family: string; label: string; elo: number } | null;
@@ -773,6 +775,16 @@ export function HomeScreen(p: Props) {
                 title="Crée une course : tes amis la rejoignent par un lien et jouent les mêmes finales"
               >
                 <Icon name="flag" className="h-5 w-5" /> Course entre amis
+              </button>
+            )}
+            {p.onPublicRace && (
+              <button
+                type="button"
+                onClick={p.onPublicRace}
+                className="rounded-xl border border-emerald-500/60 px-5 py-4 text-lg font-bold text-emerald-300 hover:bg-emerald-500/10"
+                title="Course ouverte à tous : départ toutes les 30 secondes avec les joueurs présents"
+              >
+                <Icon name="flag" className="h-5 w-5" /> Course publique
               </button>
             )}
             <span className="text-sm text-stone-400">

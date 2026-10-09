@@ -28,6 +28,15 @@ export async function joinRace(code: string, me: { id: string; name: string; joi
   const channel = sb.channel(`race:${code}`, { config: { presence: { key: me.id }, broadcast: { self: false } } });
   let mine: RacePlayer = { ...me, score: 0, errors: 0, done: false, started: false };
   let closed = false;
+  // Envois de présence groupés : au plus un par seconde et par joueur (quota Supabase gratuit :
+  // 20 messages de présence par seconde pour tout le projet). Le dernier état part toujours.
+  let lastSent = 0;
+  let pending: number | undefined;
+  const push = () => {
+    pending = undefined;
+    lastSent = Date.now();
+    if (!closed) void channel.track({ ...mine });
+  };
 
   channel.on('presence', { event: 'sync' }, () => {
     if (closed) return;
@@ -58,12 +67,17 @@ export async function joinRace(code: string, me: { id: string; name: string; joi
   return {
     update: (patch) => {
       mine = { ...mine, ...patch };
-      if (!closed) void channel.track({ ...mine });
+      if (closed || pending !== undefined) return;
+      // Fin de course : envoi immédiat (classement final) ; sinon une fois par seconde au plus.
+      const wait = patch.done || patch.started ? 0 : Math.max(0, 1_000 - (Date.now() - lastSent));
+      if (wait === 0) push();
+      else pending = window.setTimeout(push, wait);
     },
     start: () => void channel.send({ type: 'broadcast', event: 'start', payload: { by: me.id } }),
     again: (next) => void channel.send({ type: 'broadcast', event: 'again', payload: { by: me.id, code: next } }),
     close: () => {
       closed = true;
+      window.clearTimeout(pending);
       void channel.untrack().catch(() => undefined);
       void sb.removeChannel(channel);
     },
