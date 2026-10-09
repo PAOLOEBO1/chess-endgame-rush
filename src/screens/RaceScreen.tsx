@@ -1,9 +1,12 @@
-// Course entre amis : salon (lien à partager), compte à rebours, 3 minutes sur les MÊMES
-// finales pour tous, classement en direct. Rien n'est enregistré côté serveur.
+// Course entre amis : salon (lien à partager), compte à rebours, 1 min 30 sur les MÊMES
+// finales pour tous, piste et classement en direct (inspiré de Lichess Puzzle Racer).
+// Points : 1 par bon coup + bonus de combo ; une erreur vide le combo et coûte du temps.
+// Rien n'est enregistré côté serveur.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../components/Icon';
 import { PuzzleRunner, type PuzzleEnd } from '../components/PuzzleRunner';
+import { ComboBar, RaceTrack } from '../components/race/RaceTrack';
 import type { ErrorType } from '../core/errorTypes';
 import type { SolveInfo } from '../core/history';
 import {
@@ -12,6 +15,7 @@ import {
   RACE_MAX_PLAYERS,
   RACE_PENALTY_MS,
   cleanRaceName,
+  comboBonus,
   newRaceCode,
   rankPlayers,
   raceColor,
@@ -84,6 +88,11 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   const [score, setScore] = useState(0);
   const [errors, setErrors] = useState(0);
   const [penalty, setPenalty] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [solved, setSolved] = useState(0);
+  /** Message éclair près du chrono : « +2 » (bonus de combo) ou « −5 s » (erreur). */
+  const [pop, setPop] = useState<{ text: string; good: boolean; id: number } | null>(null);
+  const comboRef = useRef(0);
   const [problem, setProblem] = useState<string | null>(null);
   const scoreRef = useRef(0);
   const errorsRef = useRef(0);
@@ -170,7 +179,13 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
       for (let i = from; i < sequence.length; i++) {
         const candidate = sequence[i];
         try {
-          if (await judge.check(candidate.fen, candidate.objective)) {
+          // Vérification bornée à 6 s : sans réponse (réseau lent), on garde la position
+          // (finale Lichess déjà classée) plutôt que de laisser l'échiquier figé.
+          const ok = await Promise.race([
+            judge.check(candidate.fen, candidate.objective),
+            new Promise<boolean>((r) => setTimeout(() => r(true), 6_000)),
+          ]);
+          if (ok) {
             judge.prefetch(candidate.fen, { objective: candidate.objective, previousUci: [], solution: candidate.solution });
             return { puzzle: candidate, at: i };
           }
@@ -211,18 +226,39 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
     }
   }, [phase, now, endsAt]);
 
+  const flashPop = (text: string, good: boolean) => {
+    const id = Date.now();
+    setPop({ text, good, id });
+    window.setTimeout(() => setPop((p) => (p?.id === id ? null : p)), 1200);
+  };
+
+  // Bon coup : 1 point, le combo monte ; bonus aux paliers 5 / 12 / 20 / 30 (puis tous les 10).
+  const onGoodMove = useCallback(() => {
+    if (phaseRef.current !== 'playing') return;
+    comboRef.current += 1;
+    const bonus = comboBonus(comboRef.current);
+    scoreRef.current += 1 + bonus;
+    setCombo(comboRef.current);
+    setScore(scoreRef.current);
+    if (bonus) flashPop(`+${bonus} combo`, true);
+    link.current?.update({ score: scoreRef.current, errors: errorsRef.current });
+  }, []);
+
   const onEnd = useCallback(
     async (end: PuzzleEnd, error?: ErrorType, info?: SolveInfo) => {
       if (!current || phaseRef.current !== 'playing') return;
       if (end !== 'skipped') {
         onAttempt?.(current, end === 'solved', error, info);
         if (end === 'solved') {
-          scoreRef.current += 1;
-          setScore(scoreRef.current);
+          setSolved((n) => n + 1);
         } else {
+          // Erreur : combo vidé (comme Lichess Racer) et temps retiré.
           errorsRef.current += 1;
+          comboRef.current = 0;
+          setCombo(0);
           setErrors(errorsRef.current);
           setPenalty((p) => p + RACE_PENALTY_MS);
+          flashPop(`−${RACE_PENALTY_MS / 1000} s`, false);
         }
         link.current?.update({ score: scoreRef.current, errors: errorsRef.current });
       }
@@ -289,8 +325,9 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
           {back}
         </div>
         <p className="text-stone-300">
-          Tout le monde joue les <strong>mêmes finales</strong>, dans le même ordre et avec la même couleur, pendant 3 minutes.
-          Chaque réussite fait gagner un point ; chaque erreur coûte {RACE_PENALTY_MS / 1000} secondes. Le classement se met à jour en direct.
+          Tout le monde joue les <strong>mêmes finales</strong>, dans le même ordre et avec la même couleur, pendant <strong>1 min 30</strong>.
+          Chaque bon coup vaut un point ; enchaîner les bons coups remplit la barre de combo et rapporte des bonus (+1 à 5 d’affilée, +2 à 12, +3 à 20, +4 à 30).
+          Une erreur vide la barre et coûte {RACE_PENALTY_MS / 1000} secondes. Tu vois les autres avancer en direct sur la piste.
         </p>
         <form
           className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4"
@@ -387,55 +424,72 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   const mineRank = ranking.find((p) => p.id === me.current.id)?.rank;
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 px-3 py-3 lg:flex-row lg:items-start lg:gap-6 lg:px-4">
-      <div className="order-2 mx-auto w-full lg:order-1" style={{ maxWidth: 'min(100%, calc(100dvh - 190px), 720px)' }}>
-        {current && (
-          <PuzzleRunner key={`${current.id}-${index}`} puzzle={current} active={!over} judge={judge} onEnd={onEnd} />
-        )}
-      </div>
-      <aside className="order-1 flex w-full flex-col gap-3 lg:order-2 lg:max-w-sm">
-        <div className="flex items-stretch gap-2">
-          <div className="flex-1 rounded-xl bg-stone-800 px-3 py-2 text-center">
-            <div className="text-4xl font-black leading-tight text-amber-400 tabular-nums sm:text-5xl" data-testid="score">{score}</div>
-            <div className="text-[11px] uppercase tracking-wide text-stone-400">Score</div>
-          </div>
-          <div className="flex-1 rounded-xl bg-stone-800 px-3 py-2 text-center">
-            <div className={`text-4xl font-black leading-tight tabular-nums sm:text-5xl ${left < 30_000 ? 'text-red-400' : 'text-stone-50'}`} data-testid="timer">{clock(left)}</div>
-            <div className="text-[11px] uppercase tracking-wide text-stone-400">Temps</div>
-          </div>
-          <div className="flex-1 rounded-xl bg-stone-800 px-3 py-2 text-center">
-            <div className="text-4xl font-black leading-tight text-red-300 tabular-nums sm:text-5xl">{errors}</div>
-            <div className="text-[11px] uppercase tracking-wide text-stone-400">Erreurs</div>
-          </div>
-        </div>
-        {board}
-        {over ? (
-          <div className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4" data-testid="race-result">
-            <h2 className="text-xl font-bold text-stone-50"><Icon name="trophy" className="h-5 w-5 text-amber-300" /> Temps écoulé !</h2>
-            <p className="text-stone-200">Tu as réussi <strong className="text-2xl text-amber-400">{score}</strong> finale{score > 1 ? 's' : ''}{mineRank ? <> · rang provisoire <strong>{mineRank}</strong></> : null}.</p>
-            <p className="text-sm text-stone-400">Les autres joueurs terminent à quelques secondes près : le classement se complète tout seul.</p>
-            <div className="flex gap-3">
-              {isHost && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = newRaceCode();
-                    link.current?.again(next);
-                    onAgain(next);
-                  }}
-                  className="flex-1 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400"
-                >
-                  ↻ Nouvelle course
-                </button>
-              )}
-              <button type="button" onClick={onHome} className="flex-1 rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">Accueil</button>
+    <div className="mx-auto flex max-w-6xl flex-col gap-3 px-3 py-3 lg:px-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-6">
+        {/* Bandeau de hauteur fixe au-dessus de l'échiquier (téléphone) : rien ne le fait grandir pendant la course. */}
+        <aside className="flex w-full flex-col gap-2 lg:order-2 lg:max-w-sm">
+          <div className="flex items-stretch gap-2">
+            <div className="flex-1 rounded-xl bg-stone-800 px-3 py-2 text-center">
+              <div className="text-4xl font-black leading-tight text-amber-400 tabular-nums sm:text-5xl" data-testid="score">{score}</div>
+              <div className="text-[11px] uppercase tracking-wide text-stone-400">Points</div>
             </div>
-            {!isHost && <p className="text-xs text-stone-400">L’organisateur peut lancer une nouvelle course : tu y seras emmené automatiquement.</p>}
+            <div className="relative flex-1 rounded-xl bg-stone-800 px-3 py-2 text-center">
+              <div className={`text-4xl font-black leading-tight tabular-nums sm:text-5xl ${left < 15_000 ? 'text-red-400' : 'text-stone-50'}`} data-testid="timer">{clock(left)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-stone-400">Temps</div>
+              {pop && (
+                <span key={pop.id} className={`pointer-events-none absolute -top-2 right-1 rounded-md px-1.5 text-sm font-black ${pop.good ? 'bg-emerald-500 text-stone-900' : 'bg-red-500 text-white'}`} role="status">
+                  {pop.text}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 rounded-xl bg-stone-800 px-3 py-2 text-center">
+              <div className="text-4xl font-black leading-tight text-red-300 tabular-nums sm:text-5xl">{errors}</div>
+              <div className="text-[11px] uppercase tracking-wide text-stone-400">Erreurs</div>
+            </div>
           </div>
-        ) : (
-          <button type="button" onClick={onHome} className="self-start text-sm text-stone-400 hover:text-stone-100">Abandonner</button>
-        )}
-      </aside>
+          <ComboBar combo={combo} />
+          {over ? (
+            <div className="flex flex-col gap-3 rounded-xl bg-stone-800 p-4" data-testid="race-result">
+              <h2 className="text-xl font-bold text-stone-50"><Icon name="trophy" className="h-5 w-5 text-amber-300" /> Course terminée !</h2>
+              <p className="text-stone-200">
+                <strong className="text-2xl text-amber-400">{score}</strong> point{score > 1 ? 's' : ''} · {solved} finale{solved > 1 ? 's' : ''} réussie{solved > 1 ? 's' : ''}
+                {mineRank ? <> · ton classement : <strong>{mineRank}/{ranking.length}</strong></> : null}
+              </p>
+              {board}
+              <p className="text-sm text-stone-400">Les autres joueurs terminent à quelques secondes près : le classement se complète tout seul.</p>
+              <div className="flex gap-3">
+                {isHost && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = newRaceCode();
+                      link.current?.again(next);
+                      onAgain(next);
+                    }}
+                    className="flex-1 rounded-lg bg-amber-500 px-4 py-2 font-bold text-stone-900 hover:bg-amber-400"
+                  >
+                    ↻ Course suivante
+                  </button>
+                )}
+                <button type="button" onClick={onHome} className="flex-1 rounded-lg bg-stone-700 px-4 py-2 font-semibold text-stone-100 hover:bg-stone-600">Accueil</button>
+              </div>
+              {!isHost && <p className="text-xs text-stone-400">L’organisateur peut lancer la course suivante : tu y seras emmené automatiquement.</p>}
+            </div>
+          ) : (
+            <button type="button" onClick={onHome} className="hidden self-start text-sm text-stone-400 hover:text-stone-100 lg:block">Abandonner</button>
+          )}
+        </aside>
+        <div className="mx-auto w-full lg:order-1" style={{ maxWidth: 'min(100%, calc(100dvh - 260px), 720px)' }}>
+          {current && (
+            <PuzzleRunner key={`${current.id}-${index}`} puzzle={current} active={!over} judge={judge} onEnd={onEnd} onGoodMove={onGoodMove} />
+          )}
+        </div>
+      </div>
+      {/* Piste des joueurs SOUS l'échiquier (comme Lichess) : ses changements ne déplacent pas l'échiquier. */}
+      <RaceTrack players={players} meId={me.current.id} myScore={score} />
+      {!over && (
+        <button type="button" onClick={onHome} className="self-start text-sm text-stone-400 hover:text-stone-100 lg:hidden">Abandonner</button>
+      )}
     </div>
   );
 }

@@ -19,6 +19,28 @@ export interface Timings {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Garde-fou : un arbitre qui ne répond jamais (réseau mobile coupé, moteur suspendu par le
+ * téléphone) laissait l'échiquier bloqué. Passé ce délai, le puzzle passe en erreur et
+ * l'écran parent peut continuer (position suivante, nouvel essai).
+ */
+export const JUDGE_TIMEOUT_MS = 25_000;
+function withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`${what} : pas de réponse (connexion ou moteur).`)), JUDGE_TIMEOUT_MS);
+    promise.then(
+      (v) => {
+        clearTimeout(id);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(id);
+        reject(e);
+      },
+    );
+  });
+}
+
 export function usePuzzlePlayer(puzzle: Puzzle, rules: ModeRules, judge: MoveJudge, onPlayerMove?: () => void) {
   const [state, dispatch] = useReducer(sessionReducer, undefined, () => initialSession(puzzle, rules));
   const [timings, setTimings] = useState<Timings>({ verdictMs: null, opponentMs: null, source: null });
@@ -68,7 +90,7 @@ export function usePuzzlePlayer(puzzle: Puzzle, rules: ModeRules, judge: MoveJud
 
       void (async () => {
         try {
-          const verdict = await judge.judge(applied, ctx);
+          const verdict = await withTimeout(judge.judge(applied, ctx), 'Vérification du coup');
           if (token.current !== myToken) return;
           setTimings((t) => ({ ...t, verdictMs: Math.round(performance.now() - started), source: judge.source(applied.fenBefore) }));
           dispatch({ type: 'VERDICT', verdict });
@@ -79,8 +101,10 @@ export function usePuzzlePlayer(puzzle: Puzzle, rules: ModeRules, judge: MoveJud
 
           const opponentStart = performance.now();
           const replyCtx = { ...ctx, previousUci: [...previousUci, applied.uci] };
-          const replyUci = await judge.reply(applied.fen, replyCtx);
-          if (token.current !== myToken || !replyUci) return;
+          const replyUci = await withTimeout(judge.reply(applied.fen, replyCtx), 'Réponse adverse');
+          if (token.current !== myToken) return;
+          // Sans réponse, l'échiquier restait bloqué « l'adversaire réfléchit » : on le signale.
+          if (!replyUci) throw new Error('Aucune réponse adverse trouvée.');
           const reply = applyUci(applied.fen, replyUci);
           if (!reply) throw new Error(`Réponse adverse illégale : ${replyUci}`);
           setTimings((t) => ({ ...t, opponentMs: Math.round(performance.now() - opponentStart) }));

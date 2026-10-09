@@ -47,8 +47,8 @@ const SECTIONS: { group: string; items: Section[] }[] = [
         title: 'Course entre amis',
         points: [
           'Depuis l’accueil, « Course entre amis » crée un salon : envoie le lien à tes amis (jusqu’à 10 joueurs), chacun choisit un pseudo.',
-          'L’organisateur (le premier arrivé) lance le départ : après 5 secondes, tout le monde joue pendant 3 minutes les mêmes finales, dans le même ordre, avec la même couleur.',
-          'Chaque réussite vaut un point ; une erreur fait perdre 10 secondes. Le classement se met à jour en direct, et l’organisateur peut relancer une nouvelle course avec les mêmes amis.',
+          'L’organisateur (le premier arrivé) lance le départ : après 5 secondes, tout le monde joue pendant 1 min 30 les mêmes finales, dans le même ordre, avec la même couleur.',
+          'Comme sur Lichess Puzzle Racer, chaque bon coup vaut un point et remplit la barre de combo : bonus de +1 à 5 bons coups d’affilée, +2 à 12, +3 à 20, +4 à 30 (puis tous les 10). Une erreur vide la barre et fait perdre 5 secondes. Une piste montre l’avancée de chaque joueur en direct, et l’organisateur peut relancer une course avec les mêmes amis.',
           'Il faut une connexion Internet. Rien n’est enregistré : les pseudos et scores disparaissent à la fermeture du salon.',
         ],
       },

@@ -45,6 +45,27 @@ export function createStockfish(scriptUrl: string): Engine {
   let multi = new Map<number, RankedMove>();
   const cache = new Map<string, Promise<Analysis>>();
   const ranks = new Map<string, Promise<RankedMove[]>>();
+  /** Garde-fou d'une analyse : un téléphone peut suspendre ou tuer le Worker en pleine recherche. */
+  let watchdog: number | undefined;
+
+  /** Moteur muet : on abandonne l'analyse en cours, on relance un Worker neuf pour la file. */
+  function restart() {
+    const job = current;
+    current = null;
+    try {
+      worker?.terminate();
+    } catch {
+      /* déjà arrêté */
+    }
+    worker = null;
+    readyPromise = null;
+    job?.reject(new Error('Le moteur Stockfish ne répond plus.'));
+    if (queue.length) {
+      start().then(next, (e: Error) => {
+        for (const j of queue.splice(0)) j.reject(e);
+      });
+    }
+  }
 
   function start(): Promise<void> {
     if (readyPromise) return readyPromise;
@@ -95,6 +116,7 @@ export function createStockfish(scriptUrl: string): Engine {
       const move = line.split(/\s+/)[1];
       const job = current;
       current = null;
+      window.clearTimeout(watchdog);
       job.onLines?.([...multi.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v));
       job.resolve({ bestmove: move && move !== '(none)' ? move : null, score: lastInfo.score, pv: lastInfo.pv });
       next();
@@ -109,6 +131,8 @@ export function createStockfish(scriptUrl: string): Engine {
     const moves = current.searchMoves ?? [];
     worker.postMessage(`setoption name MultiPV value ${Math.max(1, Math.min(4, moves.length))}`);
     worker.postMessage(`position fen ${current.fen}`);
+    window.clearTimeout(watchdog);
+    watchdog = window.setTimeout(restart, current.movetimeMs + 8_000);
     worker.postMessage(`go movetime ${current.movetimeMs}${moves.length ? ` searchmoves ${moves.join(' ')}` : ''}`);
   }
 

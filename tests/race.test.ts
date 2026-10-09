@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanRaceName, newRaceCode, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
+import { cleanRaceName, comboBonus, comboProgress, newRaceCode, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
 import { sideToMove } from '../src/core/fen';
 
 const FEN_W = '8/8/8/8/8/4k3/8/4K2R w - - 0 1';
@@ -36,7 +36,7 @@ test('pseudo et données reçues : nettoyés et bornés', () => {
   assert.equal(sanitizePlayer('a', { name: '   ' }), null);
   assert.equal(sanitizePlayer('a', null), null);
   const p = sanitizePlayer('a', { name: 'Zoé', score: 1e9, errors: -4, joinedAt: 5, done: 'oui' })!;
-  assert.deepEqual([p.score, p.errors, p.done], [90, 0, false]);
+  assert.deepEqual([p.score, p.errors, p.done], [999, 0, false]);
 });
 
 test('classement : réussites, puis erreurs ; égalité = même rang', () => {
@@ -50,4 +50,16 @@ test('organisateur : le plus ancien du salon', () => {
   assert.equal(raceHost([mk('b', 20), mk('a', 10)]), 'a');
   assert.equal(raceHost([mk('b', 20)]), 'b');
   assert.equal(raceHost([]), null);
+});
+
+test('combo façon Lichess Racer : +1 à 5, +2 à 12, +3 à 20, +4 à 30 puis tous les 10', () => {
+  const bonuses = Array.from({ length: 61 }, (_, c) => comboBonus(c));
+  assert.deepEqual(
+    bonuses.map((b, c) => [c, b]).filter(([, b]) => b > 0),
+    [[5, 1], [12, 2], [20, 3], [30, 4], [40, 4], [50, 4], [60, 4]],
+  );
+  assert.deepEqual(comboProgress(0), { reached: 0, fill: 0 });
+  assert.deepEqual(comboProgress(5), { reached: 1, fill: 0 });
+  assert.deepEqual(comboProgress(16), { reached: 2, fill: 0.5 });
+  assert.deepEqual(comboProgress(35), { reached: 4, fill: 0.5 });
 });

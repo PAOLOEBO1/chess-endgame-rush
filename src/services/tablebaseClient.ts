@@ -42,6 +42,8 @@ export interface TablebaseClientOptions {
   retries?: number;
   retryDelayMs?: number;
   maxPieces?: number;
+  /** Délai maximal d'une requête : sur mobile, une requête peut rester pendante sans fin et bloquer la file. */
+  timeoutMs?: number;
 }
 
 export interface TablebaseClient {
@@ -64,6 +66,7 @@ export function createTablebaseClient(options: TablebaseClientOptions = {}): Tab
   const maxPieces = options.maxPieces ?? CONFIG.tablebase.maxPieces;
   const persistent = options.persistent;
   const pauseMs = options.rateLimitPauseMs ?? 60_000;
+  const timeoutMs = options.timeoutMs ?? 5_000;
   const now = options.now ?? (() => Date.now());
   let pausedUntil = 0;
 
@@ -99,21 +102,34 @@ export function createTablebaseClient(options: TablebaseClientOptions = {}): Tab
     for (;;) {
       const started = performance.now();
       let response: Response;
+      // Requête pendante (réseau mobile qui décroche) : abandon après timeoutMs, traité comme une coupure.
+      const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const expired = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller?.abort();
+          reject(new Error('timeout'));
+        }, timeoutMs);
+      });
+      expired.catch(() => undefined); // évite une alerte « rejet non géré » si la course est déjà finie
       try {
         requests += 1;
-        response = await fetchImpl(url);
+        response = await Promise.race([fetchImpl(url, controller ? { signal: controller.signal } : undefined), expired]);
+        if (response.ok) {
+          const data = (await Promise.race([response.json(), expired])) as TbPosition;
+          clearTimeout(timer);
+          lastLatencyMs = Math.round(performance.now() - started);
+          return data;
+        }
+        clearTimeout(timer);
       } catch {
+        clearTimeout(timer);
         if (attempt < retries) {
           attempt += 1;
           await sleep(retryDelayMs * attempt);
           continue;
         }
         throw new TablebaseError('network', 'Table de finales injoignable (connexion Internet ?).');
-      }
-      if (response.ok) {
-        const data = (await response.json()) as TbPosition;
-        lastLatencyMs = Math.round(performance.now() - started);
-        return data;
       }
       if (response.status === 429) {
         // Consigne Lichess : attendre une minute entière avant de réessayer.

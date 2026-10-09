@@ -23,6 +23,8 @@ interface Props {
   judge: MoveJudge;
   onEnd: (end: PuzzleEnd, error?: ErrorType, info?: SolveInfo) => void;
   onPlayerMove?: () => void;
+  /** Coup du joueur jugé bon (course : 1 point par bon coup, comme Lichess Racer). */
+  onGoodMove?: () => void;
   /** Message affiché à la place de l'état (ex. « le chrono démarre au premier coup »). */
   banner?: string | null;
 }
@@ -35,7 +37,7 @@ const TONE: Record<Tone, string> = {
   success: 'text-emerald-300',
 };
 
-export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banner }: Props) {
+export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, onGoodMove, banner }: Props) {
   const rules = useMemo(() => rushRules(puzzle.solution), [puzzle]);
   const { state, playMove } = usePuzzlePlayer(puzzle, rules, judge, onPlayerMove);
   const flash = useBoardFlash(state.phase, state.verdict?.kind);
@@ -55,6 +57,16 @@ export function PuzzleRunner({ puzzle, active, judge, onEnd, onPlayerMove, banne
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- issue lue au moment où la phase change
   }, [state.phase, onEnd]);
+
+  // Chaque verdict est un nouvel objet : on compte chaque bon coup une seule fois.
+  const countedVerdict = useRef<unknown>(null);
+  useEffect(() => {
+    const v = state.verdict;
+    if (!v || v === countedVerdict.current) return;
+    countedVerdict.current = v;
+    if (v.kind === 'good' && state.phase !== 'failed') onGoodMove?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- déclenché par le seul verdict
+  }, [state.verdict]);
 
   const failedBad = state.phase === 'failed' && state.verdict?.kind === 'bad' ? state.verdict : null;
   const marks = useMemo(() => {

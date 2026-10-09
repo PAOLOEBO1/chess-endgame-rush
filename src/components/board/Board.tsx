@@ -86,6 +86,26 @@ export function Board({ fen, orientation, interactive, lastMove, marks = [], arr
     };
   }, []);
 
+  // Échiquier « gelé » sur téléphone : chessground garde en mémoire la position de l'échiquier
+  // à l'écran et ne la recalcule qu'au défilement ou au redimensionnement. Si le contenu
+  // au-dessus change de hauteur (classement, messages…), l'échiquier se déplace sans que
+  // chessground le sache : les touchers tombent à côté des cases et plus rien ne bouge.
+  // On recalcule donc cette position à chaque début de toucher ou de clic (phase de capture,
+  // avant que chessground ne traite l'évènement).
+  useEffect(() => {
+    const host = el.current;
+    if (!host) return;
+    const refresh = () => api.current?.state.dom.bounds.clear();
+    host.addEventListener('touchstart', refresh, { capture: true, passive: true });
+    host.addEventListener('mousedown', refresh, { capture: true });
+    host.addEventListener('pointerdown', refresh, { capture: true, passive: true });
+    return () => {
+      host.removeEventListener('touchstart', refresh, { capture: true });
+      host.removeEventListener('mousedown', refresh, { capture: true });
+      host.removeEventListener('pointerdown', refresh, { capture: true });
+    };
+  }, []);
+
   // Mise à jour à chaque changement de position / d'état.
   useEffect(() => {
     api.current?.set(config);

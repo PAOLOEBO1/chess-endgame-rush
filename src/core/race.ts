@@ -5,13 +5,40 @@
 import { sideToMove } from './fen';
 import type { Color } from './types';
 
-export const RACE_DURATION_MS = 180_000;
-/** Temps retiré à celui qui se trompe. */
-export const RACE_PENALTY_MS = 10_000;
+/** Durée de la course : 1 min 30, comme Lichess Puzzle Racer. */
+export const RACE_DURATION_MS = 90_000;
+/** Temps retiré à celui qui se trompe (Lichess Racer n'en retire pas ; Storm retire 10 s sur 3 min). */
+export const RACE_PENALTY_MS = 5_000;
 export const RACE_COUNTDOWN_MS = 5_000;
 export const RACE_MAX_PLAYERS = 10;
 export const RACE_NAME_MAX = 20;
 export const RACE_LENGTH = 90;
+/** Borne des scores reçus des autres joueurs (1 point par bon coup + bonus de combo). */
+export const RACE_MAX_SCORE = 999;
+
+/**
+ * Combo façon Lichess Puzzle Racer : chaque bon coup vaut 1 point et remplit la barre ;
+ * bonus de +1 à 5 bons coups d'affilée, +2 à 12, +3 à 20, +4 à 30, puis +4 tous les 10.
+ * Un mauvais coup vide la barre.
+ */
+export const RACE_COMBO_STEPS = [5, 12, 20, 30] as const;
+
+/** Bonus gagné au moment où le combo atteint `combo` (0 s'il n'atteint aucun palier). */
+export function comboBonus(combo: number): number {
+  const i = RACE_COMBO_STEPS.indexOf(combo as (typeof RACE_COMBO_STEPS)[number]);
+  if (i >= 0) return i + 1;
+  return combo > 30 && (combo - 30) % 10 === 0 ? 4 : 0;
+}
+
+/** Barre de combo : paliers déjà atteints (0 à 4) et remplissage vers le prochain bonus (0 à 1). */
+export function comboProgress(combo: number): { reached: number; fill: number } {
+  const c = Math.max(0, Math.floor(combo));
+  if (c >= 30) return { reached: 4, fill: ((c - 30) % 10) / 10 };
+  const marks = [0, ...RACE_COMBO_STEPS];
+  let i = 0;
+  while (c >= marks[i + 1]) i++;
+  return { reached: i, fill: (c - marks[i]) / (marks[i + 1] - marks[i]) };
+}
 
 /** Sans 0/O/1/I/L : le code se lit et se dicte sans ambiguïté. */
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -100,15 +127,15 @@ export function sanitizePlayer(id: string, raw: unknown): RacePlayer | null {
   return {
     id: String(id).slice(0, 40),
     name,
-    score: num(r.score, RACE_LENGTH),
-    errors: num(r.errors, RACE_LENGTH),
+    score: num(r.score, RACE_MAX_SCORE),
+    errors: num(r.errors, RACE_MAX_SCORE),
     joinedAt: num(r.joinedAt, 9_999_999_999_999),
     done: r.done === true,
     started: r.started === true,
   };
 }
 
-/** Classement : plus de réussites, puis moins d'erreurs ; égalité = même rang. */
+/** Classement : plus de points, puis moins d'erreurs ; égalité = même rang. */
 export function rankPlayers(players: RacePlayer[]): (RacePlayer & { rank: number })[] {
   const sorted = [...players].sort((a, b) => b.score - a.score || a.errors - b.errors || a.joinedAt - b.joinedAt || a.id.localeCompare(b.id));
   return sorted.map((p, i) => {
