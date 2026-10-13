@@ -11,8 +11,6 @@ export const RACE_COUNTDOWN_MS = 5_000;
 export const RACE_MAX_PLAYERS = 10;
 export const RACE_NAME_MAX = 20;
 export const RACE_LENGTH = 90;
-/** Borne des scores reçus des autres joueurs (1 point par bon coup + bonus de combo). */
-export const RACE_MAX_SCORE = 999;
 
 /**
  * Combo façon Lichess Puzzle Racer : chaque bon coup vaut 1 point et remplit la barre ;
@@ -26,6 +24,28 @@ export function comboBonus(combo: number): number {
   const i = RACE_COMBO_STEPS.indexOf(combo as (typeof RACE_COMBO_STEPS)[number]);
   if (i >= 0) return i + 1;
   return combo > 30 && (combo - 30) % 10 === 0 ? 4 : 0;
+}
+
+/**
+ * Anti-triche léger : les scores viennent des appareils des joueurs, donc on écarte ceux qui
+ * sont impossibles. Hypothèse très large : au plus un bon coup toutes les 0,5 s, sans aucune
+ * erreur (entre deux coups, l'adversaire répond et la position est jugée).
+ */
+export const RACE_MIN_MOVE_MS = 500;
+/** Marge pour les horloges décalées des téléphones et le délai d'envoi des scores. */
+export const RACE_CLOCK_MARGIN_MS = 3_000;
+
+/** Meilleur score possible avec `moves` bons coups d'affilée (1 point chacun + tous les bonus). */
+export function maxRaceScore(moves: number): number {
+  let s = 0;
+  for (let c = 1; c <= moves; c++) s += 1 + comboBonus(c);
+  return s;
+}
+
+/** Le score annoncé est-il atteignable après `elapsedMs` de course (négatif ou 0 = pas commencée) ? */
+export function isPlausibleRaceScore(score: number, elapsedMs: number): boolean {
+  const t = Math.min(RACE_DURATION_MS, Math.max(0, elapsedMs)) + RACE_CLOCK_MARGIN_MS;
+  return score <= maxRaceScore(Math.floor(t / RACE_MIN_MOVE_MS));
 }
 
 /** Barre de combo : paliers déjà atteints (0 à 4) et remplissage vers le prochain bonus (0 à 1). */
@@ -95,6 +115,15 @@ export function randomRaceName(random: () => number = Math.random): string {
   return `${pick(NAME_ANIMALS)}${pick(NAME_TRAITS)}${10 + Math.floor(random() * 90)}`;
 }
 
+/** Borne des scores reçus des autres joueurs : le meilleur score possible en 1 min 30 (≈ 256). */
+export const RACE_MAX_SCORE = maxRaceScore(Math.floor((RACE_DURATION_MS + RACE_CLOCK_MARGIN_MS) / RACE_MIN_MOVE_MS));
+
+const RANDOM_NAME = new RegExp(`^(${NAME_ANIMALS.join('|')})(${NAME_TRAITS.join('|')})[1-9][0-9]$`, 'u');
+/** Pseudo tiré par randomRaceName ? (seuls ceux-là sont montrés en course publique). */
+export const isRandomRaceName = (name: string): boolean => RANDOM_NAME.test(name);
+/** Nom affiché à la place d'un pseudo libre reçu en course publique (appli modifiée). */
+export const RACE_ANONYMOUS = 'Joueur anonyme';
+
 /** Joker : un coup peut être passé par course (joué par l'appli, sans point, combo conservé). */
 export const RACE_SKIPS = 1;
 
@@ -159,12 +188,14 @@ export interface RacePlayer {
   started: boolean;
 }
 
-/** Les données reçues viennent d'inconnus : on borne et on type tout. */
-export function sanitizePlayer(id: string, raw: unknown): RacePlayer | null {
+/** Les données reçues viennent d'inconnus : on borne et on type tout (pseudo imposé en course publique). */
+export function sanitizePlayer(id: string, raw: unknown, options: { publicRace?: boolean } = {}): RacePlayer | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  const name = typeof r.name === 'string' ? cleanRaceName(r.name) : '';
-  if (!name) return null;
+  const typed = typeof r.name === 'string' ? cleanRaceName(r.name) : '';
+  if (!typed) return null;
+  // Course publique : aucun texte libre montré à des inconnus, même venant d'une appli modifiée.
+  const name = options.publicRace && !isRandomRaceName(typed) ? RACE_ANONYMOUS : typed;
   const num = (v: unknown, max: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(max, Math.floor(v))) : 0);
   return {
     id: String(id).slice(0, 40),

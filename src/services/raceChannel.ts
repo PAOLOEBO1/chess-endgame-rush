@@ -22,7 +22,12 @@ export interface RaceLink {
   close: () => void;
 }
 
-export async function joinRace(code: string, me: { id: string; name: string; joinedAt: number }, h: RaceHandlers): Promise<RaceLink> {
+export async function joinRace(
+  code: string,
+  me: { id: string; name: string; joinedAt: number },
+  h: RaceHandlers,
+  options: { publicRace?: boolean } = {},
+): Promise<RaceLink> {
   const sb = await getCloud();
   if (!sb) throw new Error('Les courses demandent la connexion au service en ligne.');
   const channel = sb.channel(`race:${code}`, { config: { presence: { key: me.id }, broadcast: { self: false } } });
@@ -43,7 +48,7 @@ export async function joinRace(code: string, me: { id: string; name: string; joi
     const list: RacePlayer[] = [];
     for (const [key, metas] of Object.entries(channel.presenceState())) {
       const last = (metas as unknown[])[(metas as unknown[]).length - 1];
-      const p = sanitizePlayer(key, last);
+      const p = sanitizePlayer(key, last, options);
       if (p) list.push(p);
     }
     h.onPlayers(list);

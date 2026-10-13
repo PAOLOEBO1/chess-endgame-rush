@@ -17,6 +17,7 @@ import {
   RACE_SKIPS,
   cleanRaceName,
   comboBonus,
+  isPlausibleRaceScore,
   nextRaceCode,
   rankPlayers,
   randomRaceName,
@@ -92,6 +93,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   // --- Course (jeu) -------------------------------------------------------------
   const sequence = useMemo(() => (pool ? raceSequence(pool, code) : []), [pool, code]);
   const [startAt, setStartAt] = useState(0);
+  const startAtRef = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const [index, setIndex] = useState(0);
   const [current, setCurrent] = useState<Puzzle | null>(null);
@@ -126,7 +128,11 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
       try {
         link.current = await joinRace(code, { id: me.current.id, name: clean, joinedAt: me.current.joinedAt }, {
           onStatus: setStatus,
-          onPlayers: (list) => {
+          onPlayers: (received) => {
+            // Scores impossibles (appli modifiée) : le joueur n'est pas affiché.
+            const t0 = startAtRef.current;
+            const elapsed = t0 ? Date.now() - t0 : 0;
+            const list = received.filter((p) => p.id === me.current.id || isPlausibleRaceScore(p.score, elapsed));
             playersRef.current = list;
             setPlayers(list);
             if (!checked.current && list.some((p) => p.id === me.current.id)) {
@@ -143,7 +149,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
           },
           // Revanche à la Lichess : chacun clique quand il veut, plus de départ forcé par l'organisateur.
           onAgain: () => undefined,
-        });
+        }, { publicRace: isPublic });
       } catch (e) {
         setStatus('error');
         setProblem(e instanceof Error ? e.message : String(e));
@@ -174,6 +180,7 @@ export function RaceScreen({ code, pool, judge, defaultName, onAttempt, onAgain,
   }, [refused]);
 
   function begin(at = Date.now() + RACE_COUNTDOWN_MS) {
+    startAtRef.current = at;
     setStartAt(at);
     setNow(Date.now());
     link.current?.update({ started: true });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanRaceName, comboBonus, comboProgress, newRaceCode, nextRaceCode, publicRace, randomRaceName, PUBLIC_MIN_WAIT_MS, PUBLIC_SLOT_MS, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
+import { cleanRaceName, comboBonus, isPlausibleRaceScore, isRandomRaceName, maxRaceScore, RACE_ANONYMOUS, RACE_DURATION_MS, RACE_MAX_SCORE, comboProgress, newRaceCode, nextRaceCode, publicRace, randomRaceName, PUBLIC_MIN_WAIT_MS, PUBLIC_SLOT_MS, parseRaceCode, rankPlayers, raceColor, raceHost, raceSequence, sanitizePlayer, type RacePlayer } from '../src/core/race';
 import { sideToMove } from '../src/core/fen';
 
 const FEN_W = '8/8/8/8/8/4k3/8/4K2R w - - 0 1';
@@ -36,7 +36,7 @@ test('pseudo et données reçues : nettoyés et bornés', () => {
   assert.equal(sanitizePlayer('a', { name: '   ' }), null);
   assert.equal(sanitizePlayer('a', null), null);
   const p = sanitizePlayer('a', { name: 'Zoé', score: 1e9, errors: -4, joinedAt: 5, done: 'oui' })!;
-  assert.deepEqual([p.score, p.errors, p.done], [999, 0, false]);
+  assert.deepEqual([p.score, p.errors, p.done], [RACE_MAX_SCORE, 0, false]);
 });
 
 test('classement : réussites, puis erreurs ; égalité = même rang', () => {
@@ -91,4 +91,30 @@ test('pseudo aléatoire : propre et court', () => {
     assert.equal(cleanRaceName(n), n);
     assert.match(n, /^\p{L}+\d{2}$/u);
   }
+});
+
+test('course publique : seuls les pseudos aléatoires sont montrés', () => {
+  for (let i = 0; i < 50; i++) assert.equal(isRandomRaceName(randomRaceName()), true);
+  assert.equal(isRandomRaceName('LynxRusé42'), true);
+  assert.equal(isRandomRaceName('Zoé'), false);
+  assert.equal(isRandomRaceName('LynxRusé42 idiot'), false);
+  assert.equal(isRandomRaceName('LynxRusé5'), false);
+  assert.equal(sanitizePlayer('a', { name: 'Insulte' }, { publicRace: true })!.name, RACE_ANONYMOUS);
+  assert.equal(sanitizePlayer('a', { name: 'HibouZen77' }, { publicRace: true })!.name, 'HibouZen77');
+  assert.equal(sanitizePlayer('a', { name: 'Zoé' })!.name, 'Zoé'); // entre amis : pseudo libre
+});
+
+test('scores impossibles écartés', () => {
+  assert.equal(maxRaceScore(0), 0);
+  assert.equal(maxRaceScore(5), 6); // 5 coups + bonus de 1
+  assert.equal(maxRaceScore(30), 40); // 30 + 1 + 2 + 3 + 4
+  assert.equal(maxRaceScore(40), 54); // + 10 coups + 4
+  assert.equal(RACE_MAX_SCORE, 256);
+  assert.equal(isPlausibleRaceScore(0, 0), true);
+  assert.equal(isPlausibleRaceScore(7, 0), true); // 3 s de marge : 6 coups possibles
+  assert.equal(isPlausibleRaceScore(50, 0), false); // pas encore partie
+  assert.equal(isPlausibleRaceScore(40, 15_000), true); // 36 coups possibles en 18 s
+  assert.equal(isPlausibleRaceScore(120, 15_000), false);
+  assert.equal(isPlausibleRaceScore(256, RACE_DURATION_MS + 60_000), true);
+  assert.equal(isPlausibleRaceScore(257, RACE_DURATION_MS + 60_000), false);
 });
