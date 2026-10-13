@@ -58,3 +58,11 @@ test('guide : la course publique et l’anti-triche sont expliqués', async ({ p
   await expect(page.getByText(/Joueur anonyme/)).toBeVisible();
   await expect(page.getByText(/Anti-triche/)).toBeVisible();
 });
+
+test('lien de groupe hors connexion : thème « Entraîneur » ouvert et message clair', async ({ page }) => {
+  await page.goto('./#groupe=ABCD2345');
+  await page.getByRole('button', { name: 'Passer' }).click();
+  await expect(page.getByText('Groupe indisponible pour le moment (connexion). Réessaie plus tard.')).toBeVisible();
+  // Le lien est retiré de l'adresse une fois lu.
+  expect(new URL(page.url()).hash).toBe('');
+});

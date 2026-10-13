@@ -159,22 +159,31 @@ export function CoachGroupBox({
 }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [adding, setAdding] = useState(false);
+  const noticeBox = notice && (
+    <p className="mt-3 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200" role="note">
+      {notice}
+    </p>
+  );
   if (!group) {
+    // Aucun groupe encore : le message (ex. lien ouvert sans connexion) doit rester visible au-dessus de la saisie du code.
     return (
-      <JoinForm
-        onJoin={onJoin}
-        intro={
-          <>
-            Les exercices choisis par <strong>ton entraîneur</strong>. Entre le code de ton groupe (8 caractères), ou ouvre le lien qu’il t’a
-            envoyé.
-          </>
-        }
-      />
+      <>
+        {noticeBox}
+        <JoinForm
+          onJoin={onJoin}
+          intro={
+            <>
+              Les exercices choisis par <strong>ton entraîneur</strong>. Entre le code de ton groupe (8 caractères), ou ouvre le lien qu’il t’a
+              envoyé.
+            </>
+          }
+        />
+      </>
     );
   }
   return (
     <>
-      {notice && <p className="mt-3 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200" role="note">{notice}</p>}
+      {noticeBox}
       {groups.length > 1 && (
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Mes groupes">
           {groups.map((g) => (

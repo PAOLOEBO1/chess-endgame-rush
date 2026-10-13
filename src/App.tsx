@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { subcategoryOf } from './core/categories';
 import { CONFIG, rushRules, TECHNIQUE_RULES, TRAINING_RULES } from './core/config';
 import { countPieces } from './core/fen';
@@ -9,14 +9,12 @@ import type { ErrorType } from './core/errorTypes';
 import { cleanSolveInfo, type PlayedExercise, type SolveInfo } from './core/history';
 import { ratingsByKey } from './core/playerRating';
 import { dailyPick, dayKey, dayStreak } from './core/motivation';
-import { decodeSeries, type Series } from './core/series';
 import { CHALLENGE_SIZE, challengePick, challengeProgress, weekKey } from './core/challenge';
 import { FAMILY_LABEL, familyOf } from './core/material';
 import type { Puzzle } from './core/types';
 import { loadLichessPuzzles } from './data/lichessRepository';
-import { BASICS_GROUPS, PUZZLES_MOCK } from './data/puzzlesMock';
+import { BASICS_GROUPS } from './data/puzzlesMock';
 import { LESSONS } from './data/lessons';
-import { readEmbedOptions } from './embed';
 import { GameScreen } from './screens/GameScreen';
 import { HomeScreen, type HomeMode, type ThemeChoice } from './screens/HomeScreen';
 import { RushScreen } from './screens/RushScreen';
@@ -26,101 +24,27 @@ import { tablebase } from './services/tablebaseClient';
 import { stockfish } from './services/stockfish';
 import { useCloudAccount } from './hooks/useCloudAccount';
 import { cloudEnabled, openedFromEmailLink } from './services/cloud';
-import { newRaceCode, parseRaceCode, publicRace } from './core/race';
+import { newRaceCode, publicRace } from './core/race';
 import type { Run } from './services/playerStore';
 import { playerStore } from './services/players';
 import { linkedUser } from './services/sync';
-import { declineShare, fetchGroupSet, forgetJoinedGroup, joinedGroups, joinTracking, keepJoinedGroup, leaveTracking, membershipFor, memberships, reportResult, selectJoinedGroup } from './services/coachSets';
-import { activeGroup, MAX_JOINED } from './core/studentGroups';
+import { membershipFor, reportResult, selectJoinedGroup } from './services/coachSets';
 import { coachDetail, coachIndexOf } from './core/coachProgress';
-import { coachPuzzles } from './core/coachSet';
 import { hasMotif, motifChoices } from './core/motifs';
 import { dueInfo, homeworkGoal, homeworkIndices, myHomeworkDone } from './core/homework';
 import { scheduleUserDataSync, USER_DATA_EVENT } from './services/userDataSync';
 import { getSettings, setSetting } from './services/settings';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WelcomeDialog } from './components/WelcomeDialog';
+import { useStudentGroups } from './hooks/useStudentGroups';
+import { BASICS, buildPool, classify, PARCOURS } from './app/catalog';
+import { embed, RACE_LINK, SERIES, SERIES_PUZZLES } from './app/links';
+import { AnalysisScreen, CoachScreen, ExamScreen, HelpScreen, JudgeQuizScreen, LeaderboardScreen, LegalScreen, LessonScreen, PrivacyScreen, ProgressScreen, RaceScreen, SeriesScreen, type Screen } from './app/screens';
 
-type Screen = { name: 'home' } | { name: 'training'; index: number } | { name: 'rush'; run: number; hw?: string } | { name: 'progress'; stats?: boolean } | { name: 'privacy' } | { name: 'legal' } | { name: 'review'; ids: string[]; index: number; maintenance?: boolean } | { name: 'technique'; id: string; n: number } | { name: 'daily' } | { name: 'leaderboard' } | { name: 'judgeQuiz' } | { name: 'lesson'; id: string } | { name: 'otherSide'; puzzle: Puzzle; index: number } | { name: 'challenge'; index: number } | { name: 'coach'; tab?: CoachTab } | { name: 'series' } | { name: 'seriesPlay'; index: number } | { name: 'exam'; group: string; index: number } | { name: 'examEnd'; group: string } | { name: 'analysis'; fen?: string; moves?: string[]; back?: Screen } | { name: 'help' } | { name: 'race'; code: string; rematch?: boolean; startsAt?: number };
 
-const embed = readEmbedOptions();
 
-// Écrans secondaires chargés à part : l'accueil et le jeu s'affichent plus vite.
-const loadProgress = () => import('./screens/ProgressScreen');
-const loadPrivacy = () => import('./screens/PrivacyScreen');
-const loadLeaderboard = () => import('./screens/LeaderboardScreen');
-const CoachScreen = lazy(() => import('./screens/CoachScreen').then((m) => ({ default: m.CoachScreen })));
-import type { CoachTab } from './screens/CoachScreen';
-const SeriesScreen = lazy(() => import('./screens/SeriesScreen').then((m) => ({ default: m.SeriesScreen })));
-const LessonScreen = lazy(() => import('./screens/LessonScreen').then((m) => ({ default: m.LessonScreen })));
-const RaceScreen = lazy(() => import('./screens/RaceScreen').then((m) => ({ default: m.RaceScreen })));
-const HelpScreen = lazy(() => import('./screens/HelpScreen').then((m) => ({ default: m.HelpScreen })));
-const AnalysisScreen = lazy(() => import('./screens/AnalysisScreen').then((m) => ({ default: m.AnalysisScreen })));
-const ExamScreen = lazy(() => import('./screens/ExamScreen').then((m) => ({ default: m.ExamScreen })));
-const JudgeQuizScreen = lazy(() => import('./screens/JudgeQuizScreen').then((m) => ({ default: m.JudgeQuizScreen })));
-const LeaderboardScreen = lazy(() => loadLeaderboard().then((m) => ({ default: m.LeaderboardScreen })));
-const ProgressScreen = lazy(() => loadProgress().then((m) => ({ default: m.ProgressScreen })));
-const PrivacyScreen = lazy(() => loadPrivacy().then((m) => ({ default: m.PrivacyScreen })));
-const LegalScreen = lazy(() => import('./screens/LegalScreen').then((m) => ({ default: m.LegalScreen })));
-// … puis préchargés quelques secondes après l'ouverture (et gardés pour l'usage hors ligne).
-if (typeof window !== 'undefined')
-  window.setTimeout(() => {
-    void loadProgress().catch(() => {});
-    void loadPrivacy().catch(() => {});
-    void loadLeaderboard().catch(() => {});
-  }, 3_000);
 
-/** Famille et sous-catégorie calculées une fois pour toutes au chargement. */
-function classify(p: Puzzle): Puzzle {
-  const family = p.family ?? familyOf(p.fen);
-  return { ...p, family, subcategory: subcategoryOf(p.fen, family) };
-}
-// Ordre du parcours conseillé (thème par thème), puis toute position non rangée.
-const PARCOURS = BASICS_GROUPS.flatMap((g) => g.ids);
-const rank = (id: string) => (PARCOURS.includes(id) ? PARCOURS.indexOf(id) : PARCOURS.length);
-const BASICS = [...PUZZLES_MOCK].sort((a, b) => rank(a.id) - rank(b.id)).map(classify);
 
-/**
- * Sous-thèmes exacts couverts par les « Bases » (Lucena, Philidor, dame contre
- * pion…). Les catégories fourre-tout « -autres » sont exclues : elles
- * mélangeraient des milliers de finales sans rapport avec les bases.
- */
-const BASICS_SUBS = new Set(BASICS.map((p) => p.subcategory).filter((s) => s && !s.endsWith('-autres')));
-
-/**
- * Puzzles des modes classés (Storm / Streak) : uniquement la base Lichess,
- * dont l'Elo est calculé par Lichess (Glicko-2). Les « Bases », à l'Elo
- * seulement estimé, restent réservées à l'entraînement ; le thème « Bases »
- * tire donc des puzzles Lichess de même matériel.
- */
-function buildPool(theme: ThemeChoice, sub: string, lichess: Puzzle[]): Puzzle[] {
-  if (theme === 'bases') return lichess.filter((p) => BASICS_SUBS.has(p.subcategory));
-  if (theme === 'mix') return lichess;
-  return lichess.filter((p) => p.family === theme && (sub === 'all' || p.subcategory === sub));
-}
-
-/** Groupe d'entraîneur reçu par lien (#groupe=CODE), lu une fois au chargement. */
-const GROUP_LINK = typeof window === 'undefined' ? null : (/^#groupe=([A-Za-z0-9]{8})$/.exec(window.location.hash)?.[1]?.toUpperCase() ?? null);
-
-/** Course entre amis reçue par lien (#course=CODE), lue une fois au chargement. */
-const RACE_LINK = typeof window === 'undefined' || !cloudEnabled ? null : parseRaceCode(window.location.hash);
-
-/** Série d'entraîneur reçue par lien (#serie=…), lue une fois au chargement. */
-const SERIES: Series | null = typeof window === 'undefined' ? null : decodeSeries(window.location.hash, (id) => BASICS.some((b) => b.id === id));
-const SERIES_PUZZLES: Puzzle[] = (SERIES?.items ?? []).map((it, i) =>
-  'id' in it
-    ? BASICS.find((b) => b.id === it.id)!
-    : classify({
-        id: `serie-${i + 1}`,
-        title: it.title ?? `Position ${i + 1}`,
-        fen: it.fen,
-        objective: it.objective,
-        collection: 'bases',
-        level: 'intermediaire',
-        rating: 1500,
-        concept: 'Position choisie par ton entraîneur : cherche le plan avant de jouer.',
-      }),
-);
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>(() => {
@@ -186,56 +110,13 @@ export default function App() {
 
   // Sous-thème trop pauvre (< minPuzzlesPerTheme, ex. lien ▶ ou intégration) : on joue toute la famille.
   const effSub = sub === 'all' || !lichess || (counts.get(sub) ?? 0) >= CONFIG.minPuzzlesPerTheme ? sub : 'all';
-  // --- Groupe d'entraîneur : ses exercices forment le thème « Entraîneur » -------
-  // Un élève peut être dans plusieurs groupes (10 au plus) : il en choisit un pour jouer (groupe actif).
-  const [joined, setJoined] = useState(() => joinedGroups());
-  const [members, setMembers] = useState(() => memberships());
-  const [coachNotice, setCoachNotice] = useState<string | null>(null);
-  const refreshGroups = useCallback(() => {
-    setJoined(joinedGroups());
-    setMembers(memberships());
-  }, []);
-  const coachSet = useMemo(() => activeGroup(joined), [joined]);
-  const declined = !!coachSet && joined.declined.includes(coachSet.code);
-  const coachPool = useMemo(() => (coachSet ? coachPuzzles(coachSet.code, coachSet.items).map(classify) : []), [coachSet]);
-  const joinGroup = useCallback(
-    async (code: string): Promise<string | null> => {
-      try {
-        const set = await fetchGroupSet(code);
-        if (!set) return 'Code inconnu : vérifie-le auprès de ton entraîneur.';
-        if (!keepJoinedGroup(set, true)) return `Tu es déjà dans ${MAX_JOINED} groupes : quittes-en un avant d’en ajouter un autre.`;
-        setCoachNotice(null);
-        refreshGroups();
-        return null;
-      } catch {
-        return 'Groupe indisponible pour le moment (connexion). Réessaie plus tard.';
-      }
-    },
-    [refreshGroups],
-  );
-  useEffect(() => {
-    // Lien #groupe=CODE : ajouter ce groupe (sans quitter les autres) et ouvrir le thème.
-    if (GROUP_LINK) {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
-      setTheme('entraineur');
-      setMode((m) => (m === 'training' ? 'storm' : m));
-      void joinGroup(GROUP_LINK).then((err) => setCoachNotice(err));
-    }
-    // Mise à jour silencieuse des autres groupes déjà rejoints (hors ligne : copies locales).
-    for (const g of joinedGroups().groups) {
-      if (g.code === GROUP_LINK) continue;
-      fetchGroupSet(g.code)
-        .then((set) => {
-          if (!set || !joinedGroups().groups.some((x) => x.code === set.code)) return; // quitté entre-temps
-          keepJoinedGroup(set, false);
-          refreshGroups();
-        })
-        .catch(() => {
-          /* hors ligne : copie locale */
-        });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- une fois à l'ouverture
-  }, []);
+
+  // --- Groupe d'entraîneur : ses exercices forment le thème « Entraîneur » (hooks/useStudentGroups) ---
+  const groups = useStudentGroups(() => {
+    setTheme('entraineur');
+    setMode((m) => (m === 'training' ? 'storm' : m));
+  });
+  const { joined, members, coachNotice, refreshGroups, coachSet, declined, coachPool, joinGroup } = groups;
 
   const basePool = useMemo(
     () => (theme === 'entraineur' ? coachPool : lichess ? buildPool(theme, effSub, lichess) : null),
@@ -988,35 +869,14 @@ export default function App() {
       coachGroup={coachSet ? { name: coachSet.name, count: coachSet.items.length, updatedAt: coachSet.updatedAt, code: coachSet.code } : null}
       coachGroups={joined.groups.map((g) => ({ code: g.code, name: g.name, tracked: !!members[g.code] }))}
       coachNotice={coachNotice}
-      onSelectGroup={(code) => {
-        selectJoinedGroup(code);
-        refreshGroups();
-      }}
+      onSelectGroup={groups.select}
       onJoinGroup={joinGroup}
-      onLeaveGroup={() => {
-        if (!coachSet) return;
-        void leaveTracking(coachSet.code); // ce groupe seulement
-        forgetJoinedGroup(coachSet.code);
-        refreshGroups();
-      }}
-      coachTracking={coachSet && members[coachSet.code] ? { pseudo: members[coachSet.code].pseudo } : null}
+      onLeaveGroup={groups.leave}
+      coachTracking={groups.tracking}
       shareDeclined={declined}
-      onShare={async (pseudo) => {
-        if (!coachSet) return 'Rejoins d’abord un groupe.';
-        const err = await joinTracking(coachSet.code, pseudo); // les suivis dans les autres groupes ne changent pas
-        if (!err) refreshGroups();
-        return err;
-      }}
-      onDeclineShare={() => {
-        if (coachSet) declineShare(coachSet.code);
-        refreshGroups();
-      }}
-      onStopShare={() => {
-        if (!coachSet) return;
-        void leaveTracking(coachSet.code);
-        declineShare(coachSet.code);
-        refreshGroups();
-      }}
+      onShare={groups.share}
+      onDeclineShare={groups.decline}
+      onStopShare={groups.stopShare}
       onAnalysis={() => setScreen({ name: 'analysis' })}
       challenge={challenge.picks.length === CHALLENGE_SIZE ? { played: challenge.played, solved: challenge.solved, total: CHALLENGE_SIZE } : null}
       onChallenge={() => setScreen({ name: 'challenge', index: challenge.next >= 0 ? challenge.next : 0 })}
