@@ -3,6 +3,11 @@ import { SUBCATEGORIES } from '../core/categories';
 import { BASICS_GROUPS } from '../data/puzzlesMock';
 import { CONFIG } from '../core/config';
 import { InstallButton } from '../components/InstallButton';
+import { PlayBar } from '../components/PlayBar';
+import { BottomNav } from '../components/home/BottomNav';
+import { CoachGroupBox, TrackingBox } from '../components/home/CoachGroupBox';
+import { TodayCard } from '../components/home/TodayCard';
+import { chip, myStart, subChip } from '../components/home/styles';
 import { Icon, type IconName } from '../components/Icon';
 import { ProfileMenu, type ProfileEntry } from '../components/ProfileMenu';
 import { SOURCE_URL } from './PrivacyScreen';
@@ -10,9 +15,8 @@ import { sideToMove } from '../core/fen';
 import { materialSymbols } from '../core/material';
 import type { RushMode } from '../core/rush/rushRules';
 import type { ExamRecord } from '../core/exam';
-import { MAX_JOINED } from '../core/studentGroups';
 import type { Level, Puzzle } from '../core/types';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import type { BestScore } from '../services/highScores';
 import { SettingsMenu } from '../components/SettingsMenu';
 import { getSettings, setSetting, type TrainTab } from '../services/settings';
@@ -45,7 +49,7 @@ const MODES: { id: HomeMode; icon: IconName; title: string; text: string }[] = [
 
 const LEVEL_LABEL: Record<Level, string> = { debutant: 'Débutant', intermediaire: 'Intermédiaire', avance: 'Avancé', master: 'Master' };
 
-type HomeProps = Props;
+export type HomeProps = Props;
 
 interface Props {
   /** Affichage compact (intégration dans un site). */
@@ -149,244 +153,6 @@ interface Props {
   onStopShare: () => void;
 }
 
-function TrackingBox({
-  tracking,
-  declined,
-  onShare,
-  onDecline,
-  onStop,
-}: {
-  tracking: { pseudo: string } | null;
-  declined: boolean;
-  onShare: (pseudo: string) => Promise<string | null>;
-  onDecline: () => void;
-  onStop: () => void;
-}) {
-  const [pseudo, setPseudo] = useState('');
-  const [consent, setConsent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
-  if (tracking) {
-    return (
-      <p className="mt-2 text-xs text-stone-400">
-        <Icon name="chart" className="h-3.5 w-3.5 text-emerald-300" /> L’entraîneur de ce groupe suit tes résultats sur ses exercices, sous le pseudo{' '}
-        <strong className="text-stone-200">« {tracking.pseudo} »</strong>.{' '}
-        <button type="button" onClick={onStop} className="text-sky-400 hover:underline">
-          Ne plus partager (efface mes résultats)
-        </button>
-      </p>
-    );
-  }
-  if (declined && !open) {
-    return (
-      <p className="mt-2 text-xs text-stone-400">
-        Tes résultats ne sont pas partagés dans ce groupe.{' '}
-        <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:underline">
-          Les partager
-        </button>
-      </p>
-    );
-  }
-  return (
-    <form
-      className="mt-2 flex flex-col gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-stone-200"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setBusy(true);
-        setError(await onShare(pseudo));
-        setBusy(false);
-      }}
-    >
-      <p>
-        <strong>Partager tes résultats avec l’entraîneur de ce groupe ?</strong> Il verra, sous ton pseudo seulement, tes scores sur les
-        exercices de ce groupe (Storm, Streak, réussite, exercices ratés) pour t’aider à progresser. Personne d’autre ne les voit ; tu peux
-        arrêter à tout moment. Tes autres groupes ne changent pas.
-      </p>
-      <input
-        value={pseudo}
-        onChange={(e) => setPseudo(e.target.value)}
-        maxLength={30}
-        placeholder="Ton pseudo (ex. prénom + initiale)"
-        aria-label="Pseudo pour l’entraîneur"
-        className="rounded-lg bg-stone-900 px-3 py-2 text-stone-100 placeholder:text-stone-500"
-      />
-      <label className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>
-          J’accepte que mon entraîneur voie mes résultats, et j’ai <strong>15 ans ou plus</strong> ou un parent est d’accord.
-        </span>
-      </label>
-      <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={busy || !consent || pseudo.trim().length < 2} className="rounded-lg bg-sky-500 px-4 py-2 font-semibold text-stone-900 hover:bg-sky-400 disabled:opacity-40">
-          {busy ? 'Envoi…' : 'Partager mes résultats'}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false);
-            onDecline();
-          }}
-          className="rounded-lg px-3 py-2 text-stone-300 hover:text-stone-50"
-        >
-          Non merci
-        </button>
-      </div>
-      {error && <p className="text-red-300">{error}</p>}
-    </form>
-  );
-}
-
-function JoinForm({ onJoin, intro, onCancel }: { onJoin: HomeProps['onJoinGroup']; intro: ReactNode; onCancel?: () => void }) {
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  return (
-    <form
-      className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-stone-200"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setBusy(true);
-        const err = await onJoin(code);
-        setError(err);
-        setBusy(false);
-        if (!err) {
-          setCode('');
-          onCancel?.();
-        }
-      }}
-    >
-      <p>{intro}</p>
-      <div className="flex flex-wrap gap-2">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          maxLength={8}
-          placeholder="CODE"
-          aria-label="Code du groupe"
-          autoCapitalize="characters"
-          spellCheck={false}
-          className="w-36 rounded-lg bg-stone-900 px-3 py-2 font-mono tracking-widest text-stone-100 placeholder:text-stone-500"
-        />
-        <button type="submit" disabled={busy || code.trim().length !== 8} className="rounded-lg bg-amber-500 px-4 py-2 font-semibold text-stone-900 hover:bg-amber-400 disabled:opacity-40">
-          {busy ? 'Recherche…' : 'Rejoindre'}
-        </button>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="rounded-lg px-3 py-2 text-stone-300 hover:text-stone-50">
-            Annuler
-          </button>
-        )}
-      </div>
-      {error && <p className="text-red-300">{error}</p>}
-    </form>
-  );
-}
-
-function CoachGroupBox({
-  group,
-  groups,
-  notice,
-  tracked,
-  onSelect,
-  onJoin,
-  onLeave,
-}: {
-  group: HomeProps['coachGroup'];
-  groups: HomeProps['coachGroups'];
-  notice: string | null;
-  /** Les résultats de l'élève sont suivis dans le groupe joué : le quitter les efface. */
-  tracked: boolean;
-  onSelect: (code: string) => void;
-  onJoin: HomeProps['onJoinGroup'];
-  onLeave: () => void;
-}) {
-  const [confirmLeave, setConfirmLeave] = useState(false);
-  const [adding, setAdding] = useState(false);
-  if (!group) {
-    return (
-      <JoinForm
-        onJoin={onJoin}
-        intro={
-          <>
-            Les exercices choisis par <strong>ton entraîneur</strong>. Entre le code de ton groupe (8 caractères), ou ouvre le lien qu’il t’a
-            envoyé.
-          </>
-        }
-      />
-    );
-  }
-  return (
-    <>
-      {notice && <p className="mt-3 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200" role="note">{notice}</p>}
-      {groups.length > 1 && (
-        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Mes groupes">
-          {groups.map((g) => (
-            <button
-              key={g.code}
-              type="button"
-              aria-pressed={g.code === group.code}
-              onClick={() => {
-                setConfirmLeave(false);
-                onSelect(g.code);
-              }}
-              className={subChip(g.code === group.code)}
-            >
-              {g.name}
-              {g.tracked && <Icon name="chart" className="ml-1 h-3.5 w-3.5 opacity-70" />}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-stone-700 p-3 text-sm text-stone-200">
-        <span className="min-w-0 flex-1">
-          <Icon name="board" className="h-4 w-4 text-amber-300" /> Groupe <strong>« {group.name} »</strong> · {group.count} exercice{group.count > 1 ? 's' : ''},
-          du plus facile au plus difficile
-          {group.updatedAt && <span className="text-stone-400"> · mis à jour le {new Date(group.updatedAt).toLocaleDateString('fr-FR')}</span>}
-        </span>
-        {confirmLeave ? (
-          <span className="flex flex-wrap items-center gap-2 text-xs text-amber-200">
-            Quitter ce groupe efface tes résultats chez son entraîneur (tes autres groupes ne changent pas). Quitter ?
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmLeave(false);
-                onLeave();
-              }}
-              className="rounded-md bg-red-600 px-2 py-1 font-semibold text-white hover:bg-red-500"
-            >
-              Oui, quitter
-            </button>
-            <button type="button" onClick={() => setConfirmLeave(false)} className="rounded-md bg-stone-700 px-2 py-1 text-stone-100">
-              Rester
-            </button>
-          </span>
-        ) : (
-          <span className="flex flex-wrap items-center gap-3 text-xs">
-            {groups.length < MAX_JOINED && !adding && (
-              <button type="button" onClick={() => setAdding(true)} className="text-sky-400 hover:underline">
-                + Ajouter un groupe
-              </button>
-            )}
-            <button type="button" onClick={() => (tracked ? setConfirmLeave(true) : onLeave())} className="text-stone-400 hover:text-stone-100 hover:underline">
-              Quitter ce groupe
-            </button>
-          </span>
-        )}
-      </div>
-      {adding && (
-        <JoinForm
-          onJoin={onJoin}
-          onCancel={() => setAdding(false)}
-          intro={<>Entre le code d’un autre groupe (8 caractères) : tu gardes aussi tes groupes actuels ({groups.length}/{MAX_JOINED}).</>}
-        />
-      )}
-    </>
-  );
-}
-
-const subChip = (active: boolean) =>
-  `rounded-lg px-2.5 py-1 text-sm transition disabled:opacity-30 ${active ? 'bg-amber-500 text-stone-900' : 'bg-stone-800/70 text-stone-200 hover:bg-stone-700'}`;
-
 function Count({ n }: { n?: number }) {
   return <span className="ml-1 text-xs opacity-60 tabular-nums">{n ?? 0}</span>;
 }
@@ -399,175 +165,6 @@ const TRAIN_TABS: { id: TrainTab; label: string; icon: IconName }[] = [
   { id: 'analyse', label: 'Analyse', icon: 'search' },
   { id: 'entraineur', label: 'Entraîneur', icon: 'board' },
 ];
-
-const chip = (active: boolean) =>
-  `rounded-full px-3 py-1.5 text-sm font-semibold transition ${active ? 'bg-amber-500 text-stone-900' : 'bg-stone-800 text-stone-200 hover:bg-stone-700'}`;
-
-/** Départ légèrement sous l'Elo personnel (échauffement), arrondi à 50. */
-const myStart = (elo: number) => Math.max(400, Math.round((elo - 100) / 50) * 50);
-
-/** Une ligne de la carte « Aujourd'hui » : icône, texte, action. */
-function TodayRow({ icon, tone = 'text-amber-300', children, action }: { icon: IconName; tone?: string; children: ReactNode; action?: ReactNode }) {
-  return (
-    <li className="flex items-center justify-between gap-3 py-2">
-      <span className="flex min-w-0 items-start gap-2 text-sm text-stone-200">
-        <Icon name={icon} className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} />
-        <span>{children}</span>
-      </span>
-      {action}
-    </li>
-  );
-}
-
-const todayBtn = (primary = false) =>
-  `shrink-0 rounded-lg px-3 py-1.5 text-sm font-bold ${primary ? 'bg-amber-500 text-stone-900 hover:bg-amber-400' : 'bg-stone-700 text-stone-100 hover:bg-stone-600'}`;
-
-/** Ce qu'il y a à faire aujourd'hui, en une seule carte (révision, puzzle du jour, défi, point faible). */
-function TodayCard({ p }: { p: Props }) {
-  const review = p.review && p.review.total > 0 ? p.review : null;
-  if (!review && !p.daily && !p.challenge && !p.weakness && !p.streak && !p.homework.length) return null;
-  const streak = p.streak;
-  return (
-    <section aria-labelledby="today-title" className="mb-6 rounded-xl border border-stone-700 bg-stone-800/50 px-4 pb-2 pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="today-title" className="text-sm font-semibold uppercase tracking-wide text-stone-400">
-          <Icon name="calendar" className="h-4 w-4" /> Aujourd’hui
-        </h2>
-        {streak && (
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${streak.current > 0 ? 'bg-orange-500/20 text-orange-300' : 'bg-stone-800 text-stone-400'}`}
-            title={`Meilleure série : ${streak.best} jour(s)`}
-          >
-            <Icon name="flame" className="h-3.5 w-3.5" /> {streak.current} jour{streak.current > 1 ? 's' : ''} d’affilée
-            {!streak.playedToday && streak.current > 0 && ' · joue pour la prolonger'}
-          </span>
-        )}
-      </div>
-      <ul className="divide-y divide-stone-700/60">
-        {p.homework.map((hw) => (
-          <TodayRow
-            key={`${hw.code}-${hw.id}`}
-            icon="board"
-            action={
-              hw.done >= hw.goal ? (
-                <span className="flex items-center gap-1 text-sm font-semibold text-emerald-300">
-                  <Icon name="check" className="h-4 w-4" /> fait
-                </span>
-              ) : (
-                <button type="button" onClick={() => p.onHomework(hw.id, hw.code)} className={todayBtn(true)}>
-                  Faire
-                </button>
-              )
-            }
-          >
-            <strong>Devoir{hw.group ? ` (${hw.group})` : ''} : {hw.title}</strong>{' '}
-            <span className="text-stone-400">
-              · {hw.done}/{hw.goal} réussis · avant le {new Date(`${hw.due}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
-            </span>
-          </TodayRow>
-        ))}
-        {review && (
-          <TodayRow
-            icon="refresh"
-            action={
-              review.due > 0 ? (
-                <button type="button" onClick={p.onReview} className={todayBtn(true)}>
-                  Réviser
-                </button>
-              ) : (
-                <span className="text-xs text-stone-400">rien à revoir aujourd’hui</span>
-              )
-            }
-          >
-            <strong>Révision des erreurs :</strong>{' '}
-            {review.spaced ? `${review.due} à revoir` : `${review.total} à retravailler`}
-            <span className="text-stone-400"> · {review.total} en cours</span>
-          </TodayRow>
-        )}
-        {p.daily && (
-          <TodayRow
-            icon="pin"
-            tone="text-sky-300"
-            action={
-              p.daily.result === null ? (
-                <button type="button" onClick={p.onDaily} className={todayBtn()} title={p.daily.title}>
-                  Jouer
-                </button>
-              ) : (
-                <span className={`flex items-center gap-1 text-sm font-semibold ${p.daily.result ? 'text-emerald-300' : 'text-red-300'}`}>
-                  <Icon name={p.daily.result ? 'check' : 'cross'} className="h-4 w-4" /> {p.daily.result ? 'réussi' : 'raté, à revoir'}
-                </span>
-              )
-            }
-          >
-            <strong>Puzzle du jour</strong> <span className="text-stone-400">· Elo {p.daily.rating}</span>
-          </TodayRow>
-        )}
-        {p.challenge && (
-          <TodayRow
-            icon="flag"
-            tone="text-sky-300"
-            action={
-              p.challenge.played < p.challenge.total ? (
-                <button type="button" onClick={p.onChallenge} className={todayBtn()}>
-                  {p.challenge.played === 0 ? 'Jouer' : 'Continuer'}
-                </button>
-              ) : (
-                <span className="flex items-center gap-1 text-sm font-semibold text-emerald-300">
-                  <Icon name="check" className="h-4 w-4" /> {p.challenge.solved}/{p.challenge.total} réussies
-                </span>
-              )
-            }
-          >
-            <strong>Défi de la semaine</strong>{' '}
-            <span className="text-stone-400">
-              · {p.challenge.played}/{p.challenge.total} jouées<span className="hidden sm:inline">, mêmes finales pour tout le monde</span>
-            </span>
-          </TodayRow>
-        )}
-        {p.weakness && (
-          <TodayRow
-            icon="target"
-            tone="text-sky-300"
-            action={
-              <button type="button" onClick={() => p.onWeakness(p.weakness!.family)} className={todayBtn()}>
-                Storm ciblé
-              </button>
-            }
-          >
-            <strong>Point faible :</strong> {p.weakness.label.toLowerCase()} <span className="text-stone-400">· Elo {p.weakness.elo}</span>
-          </TodayRow>
-        )}
-      </ul>
-    </section>
-  );
-}
-
-/** Navigation basse (téléphone) : accueil, progression, classement, guide. */
-function BottomNav({ p }: { p: Props }) {
-  const item = 'flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-semibold text-stone-300 hover:text-stone-50';
-  return (
-    <nav
-      aria-label="Navigation principale"
-      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-stone-800 bg-stone-900/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
-    >
-      <button type="button" className={`${item} text-amber-300`} aria-current="page" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-        <Icon name="home" className="h-5 w-5" /> Accueil
-      </button>
-      <button type="button" className={item} onClick={() => p.onProgress(true)}>
-        <Icon name="chart" className="h-5 w-5" /> Progrès
-      </button>
-      {p.onLeaderboard && (
-        <button type="button" className={item} onClick={p.onLeaderboard}>
-          <Icon name="trophy" className="h-5 w-5" /> Classement
-        </button>
-      )}
-      <button type="button" className={item} onClick={p.onHelp}>
-        <Icon name="help" className="h-5 w-5" /> Guide
-      </button>
-    </nav>
-  );
-}
 
 export function HomeScreen(p: Props) {
   const rush = p.mode !== 'training';
@@ -757,41 +354,16 @@ export function HomeScreen(p: Props) {
               )}
             </div>
           </div>
-          {/* Sur téléphone, « Jouer » reste collé en bas de l'écran. */}
-          <div className={`sticky ${p.compact ? 'bottom-0' : 'bottom-16'} z-10 -mx-4 flex flex-wrap items-center gap-4 border-t border-stone-800 bg-stone-900/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none`}>
-            <button
-              type="button"
-              disabled={!p.poolSize}
-              onClick={p.onStart}
-              className="rounded-xl bg-amber-500 px-8 py-4 text-xl font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40"
-            >
-              <Icon name="play" className="h-5 w-5" /> Jouer
-            </button>
-            {p.onRace && (
-              <button
-                type="button"
-                onClick={p.onRace}
-                className="rounded-xl border border-sky-500/60 px-5 py-4 text-lg font-bold text-sky-300 hover:bg-sky-500/10"
-                title="Crée une course : tes amis la rejoignent par un lien et jouent les mêmes finales"
-              >
-                <Icon name="flag" className="h-5 w-5" /> Course entre amis
-              </button>
-            )}
-            {p.onPublicRace && (
-              <button
-                type="button"
-                onClick={p.onPublicRace}
-                className="rounded-xl border border-emerald-500/60 px-5 py-4 text-lg font-bold text-emerald-300 hover:bg-emerald-500/10"
-                title="Course ouverte à tous : départ toutes les 30 secondes avec les joueurs présents"
-              >
-                <Icon name="flag" className="h-5 w-5" /> Course publique
-              </button>
-            )}
-            <span className="text-sm text-stone-400">
-              {p.loadError ?? (p.poolSize === null ? 'Chargement des finales…' : `${p.poolSize} finales disponibles`)}
-              {p.best && ` · Record : ${p.best.score} (${p.best.date})`}
-            </span>
-          </div>
+          {/* Sur téléphone, « Jouer » reste collé en bas de l'écran, sur une seule ligne. */}
+          <PlayBar
+            compact={p.compact}
+            poolSize={p.poolSize}
+            loadError={p.loadError}
+            best={p.best}
+            onStart={p.onStart}
+            onRace={p.onRace}
+            onPublicRace={p.onPublicRace}
+          />
         </section>
       ) : (
         <>

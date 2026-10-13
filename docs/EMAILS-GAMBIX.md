@@ -2,20 +2,13 @@
 
 Réglages faits à la main dans Brevo et Supabase (rien dans le code). À refaire si le nom de l'appli change.
 
-## 1. Expéditeur dédié (Brevo)
+## 1 et 2. Expéditeur : inchangé pour l'instant (décision du 13/10/2026)
 
-1. Brevo → menu du compte → **Senders, Domains & Dedicated IPs** → **Senders** → **Add a sender**.
-2. Nom : `Gambix`. Adresse : l'adresse publique de l'appli (`parbatruc41@proton.me`), pas l'adresse personnelle.
-3. Brevo envoie un code à cette adresse : le saisir pour valider l'expéditeur.
-
-## 2. Supabase : utiliser cet expéditeur
-
-Supabase → projet `qablkpblamdzyeebtlqg` → **Authentication** → **Emails** → **SMTP Settings** :
-
-- **Sender email** : la nouvelle adresse validée dans Brevo.
-- **Sender name** : `Gambix`.
-- Ne pas toucher à l'hôte, au port, à l'identifiant ni au mot de passe SMTP Brevo.
-- **Save**.
+Brevo refuse `parbatruc41@proton.me` comme expéditeur : la politique DMARC de proton.me exige un domaine authentifié,
+ce qui est impossible pour un domaine qu'on ne possède pas. L'expéditeur reste donc l'adresse actuelle.
+Solution durable si besoin plus tard : un nom de domaine à soi, authentifié dans Brevo (Senders, Domains & Dedicated IPs
+→ Domains), puis expéditeur `noreply@<domaine>` et mise à jour de Supabase → Authentication → Emails → SMTP Settings
+(Sender email, Sender name `Gambix`).
 
 ## 3. Modèles d'e-mails (Authentication → Emails → Templates)
 
