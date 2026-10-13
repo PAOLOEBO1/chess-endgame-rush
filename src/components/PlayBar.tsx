@@ -31,6 +31,7 @@ export function PlayBar({ compact, poolSize, loadError, best, onStart, onRace, o
 
   return (
     <div
+      data-testid="play-bar"
       // Collée juste au-dessus de la barre de navigation basse (légèrement glissée dessous, pour ne laisser aucun jour).
       style={{ bottom: compact ? 0 : 'calc(3.25rem + env(safe-area-inset-bottom, 0px))' }}
       className={`sticky z-10 -mx-4 border-t border-stone-800 bg-stone-900 px-4 py-2 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0`}
@@ -72,6 +73,7 @@ export function PlayBar({ compact, poolSize, loadError, best, onStart, onRace, o
       <div className="flex flex-wrap items-center gap-2 sm:gap-4">
         <button
           type="button"
+          data-testid="play"
           disabled={!poolSize}
           onClick={onStart}
           className="flex-1 rounded-xl bg-amber-500 px-6 py-3 text-lg font-black text-stone-900 hover:bg-amber-400 disabled:opacity-40 sm:flex-none sm:px-8 sm:py-4 sm:text-xl"

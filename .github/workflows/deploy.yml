@@ -43,6 +43,20 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Navigateur des tests d'interface
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests d'interface (ordinateur et téléphone)
+        run: npx playwright test
+
+      - name: Rapport des tests d'interface (en cas d'échec)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rapport-playwright
+          path: playwright-report
+          retention-days: 7
+
       - name: Mise en ligne sur Cloudflare Pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v4

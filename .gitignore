@@ -14,3 +14,6 @@ public/stockfish
 
 # Recueils PGN personnels (droits d'auteur : jamais dans le dépôt ni le site)
 pgn-import/
+# Tests d'interface (Playwright)
+test-results
+playwright-report
